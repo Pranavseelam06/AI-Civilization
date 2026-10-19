@@ -1,0 +1,10 @@
+# Starting targets, not implemented behavior. Implement loading in civsim/config.py.
+seed: 123
+width: 32
+height: 32
+num_agents: 24
+horizon: 500
+observation_radius: 2
+# TODO: Choose obstacle density, initial energy, maximum energy, inventory capacity,
+# movement/idle costs, food abundance, and regeneration settings.
+# TODO: Document units and valid ranges for every setting.

@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+.DS_Store
+runs/*
+!runs/.gitkeep
+checkpoints/*
+!checkpoints/.gitkeep
+
+# Private local planning and collaboration documents
+/docs/
+/AI_Civilization_Project_Blueprint.md
+/AGENTS.md
