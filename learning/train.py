@@ -128,6 +128,18 @@ def save_rollout(path: Path, rollout: Rollout, config, torch_seed: int) -> None:
         np.savez_compressed(output, **arrays, metadata=json.dumps(metadata))
 
 
+def save_checkpoint(path, model, optimizer, metadata, world_ticks, agent_transitions, update):
+    """Save a training stage with its actual update count, without consuming RNG."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    stage_metadata = {**metadata, 'updates': update,
+                      'planned_updates': metadata['updates']}
+    torch.save({'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'metadata': stage_metadata, 'world_ticks': world_ticks,
+                'agent_transitions': agent_transitions}, path)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--ticks', type=int, default=128, help='World ticks per update')
@@ -138,9 +150,13 @@ def main():
                         help='Output path in collect-only mode')
     parser.add_argument('--run-dir', type=Path)
     parser.add_argument('--checkpoint', type=Path)
+    parser.add_argument('--save-every', type=int, default=0,
+                        help='Save intermediate checkpoints every N updates (0 disables)')
+    parser.add_argument('--log-every', type=int, default=1)
     parser.add_argument('--threads', type=int, default=1, help='CPU threads; small networks need few')
     args = parser.parse_args()
-    if args.ticks <= 0 or args.updates <= 0 or args.seed < 0 or args.threads <= 0:
+    if (args.ticks <= 0 or args.updates <= 0 or args.seed < 0 or args.threads <= 0
+            or args.save_every < 0 or args.log_every <= 0):
         parser.error('ticks, updates, threads must be positive; seed must be nonnegative')
     torch.set_num_threads(args.threads)
     torch.manual_seed(args.seed)
@@ -161,6 +177,9 @@ def main():
     checkpoint = args.checkpoint or Path(f'checkpoints/ppo_{stamp}.pt')
     if checkpoint.exists():
         parser.error('Checkpoint already exists; choose a new path')
+    stages = checkpoint.parent / checkpoint.stem
+    if args.save_every and stages.exists() and any(stages.iterdir()):
+        parser.error('Checkpoint stage directory already contains files')
     run_dir.mkdir(parents=True, exist_ok=True)
     checkpoint.parent.mkdir(parents=True, exist_ok=True)
     ppo_config = PPOConfig()
@@ -168,6 +187,7 @@ def main():
     commit = subprocess.run(['git','rev-parse','HEAD'], capture_output=True, text=True).stdout.strip()
     metadata = {'seed': args.seed, 'environment': asdict(env.world.config),
                 'ppo': asdict(ppo_config), 'updates': args.updates, 'ticks_per_update': args.ticks,
+                'save_every': args.save_every,
                 'torch_version': str(torch.__version__), 'git_commit': commit,
                 'device': 'cpu', 'threads': args.threads, 'action_masking': True,
                 'mask_version': 2,
@@ -195,13 +215,15 @@ def main():
                 writer.writeheader()
             writer.writerow(metrics)
             output.flush()
-            print(f"Update {update}/{args.updates} | ticks {total_ticks} | "
-                  f"reward/transition {metrics['mean_step_reward']:.2f} | "
-                  f"value loss {metrics['value_loss']:.2f}",flush=True)
+            if update % args.log_every == 0 or update == args.updates:
+                print(f"Update {update}/{args.updates} | ticks {total_ticks} | "
+                      f"reward/transition {metrics['mean_step_reward']:.2f} | "
+                      f"value loss {metrics['value_loss']:.2f}",flush=True)
+            if args.save_every and update % args.save_every == 0:
+                save_checkpoint(stages / f'update_{update:04d}.pt', model, optimizer,
+                                metadata, total_ticks, total_transitions, update)
     # Saves learned weights and optimizer, but not an exact resumable world state.
-    torch.save({'model_state_dict':model.state_dict(), 'optimizer_state_dict':optimizer.state_dict(),
-                'metadata':metadata, 'world_ticks':total_ticks,
-                'agent_transitions':total_transitions},checkpoint)
+    save_checkpoint(checkpoint, model, optimizer, metadata, total_ticks, total_transitions, args.updates)
     print(f'Saved checkpoint: {checkpoint}')
     print(f'Metrics and configuration: {run_dir}')
     print('Training completed. Held-out evaluation is needed to establish improvement.')

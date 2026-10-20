@@ -12,6 +12,14 @@ Each entry is one sentence; results are exploratory and evaluation seeds differ 
 
 - **Experiment 8 — October 20, 2026:** After 200 updates with hunger-based eating rewards, food-energy waste fell to 0.5% across 30 matched worlds, but 4.50 agents survived versus Experiment 5’s 6.10, with eating probabilities responding strongly to hunger in a controlled probe.
 
+- **Experiment 9 — October 20, 2026:** After 200 updates with smooth positive hunger rewards, agents reverted to near-unconditional eating and averaged 2.37 survivors with 57.1% food-energy waste versus Experiment 8’s 4.77 survivors and 0.5% waste across 30 matched worlds; the change was reverted to Experiment 8 and its checkpoint archived.
+
+- **Experiment 10 — October 20, 2026:** After 200 updates with negative hunger rewards clipped to zero, mean final survivors rose to 5.13 from Experiment 8’s 3.70 across 30 matched worlds, but food-energy waste rose to 46.3% from 0.7%; it was later archived when Experiment 8 was restored.
+
+- **Experiment 11 — October 20, 2026:** Adding a gradual missed-meal penalty below 30 energy to restored-energy food rewards produced 3.67 survivors versus Experiment 6’s 2.17 across 30 matched worlds, but wasted 52.6% of food energy and remained below Experiment 8’s 4.03 survivors; it was then archived and the code restored to Experiment 8.
+
+- **Experiment 12 — October 20, 2026:** Extending Experiment 8’s unchanged training to 1,000 updates with checkpoints every 100 selected the 700-update stage on validation worlds, which averaged 11.23 survivors versus Experiment 8’s 4.50 with no observed food-energy waste on 30 separate test worlds.
+
 ## Additional diagnostic experiments
 
 - **Food-direction probe — October 20, 2026:** Controlled food relocation exposed weak food responsiveness in Experiment 3 and strong direction-specific responses in Experiment 4.

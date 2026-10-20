@@ -19,6 +19,7 @@ class World:
         self.food_consumed = 0
         self.food_energy_gained = 0
         self.food_energy_wasted = 0
+        self.missed_meals = 0
         self.agents = []
         self.tick = 0
 
@@ -33,6 +34,7 @@ class World:
         self.food_consumed = 0
         self.food_energy_gained = 0
         self.food_energy_wasted = 0
+        self.missed_meals = 0
         # Start with food on about 10% of the land; at most one unit per cell.
         self.food = (food_rng.random(self.grid.shape) < 0.1) & (self.grid == 0)
         self.tick = 0
@@ -46,7 +48,8 @@ class World:
         EAT stays in place and consumes food there if energy is below 100.
         Eating restores 25 energy (capped at 100), then each living agent loses
         one energy, including when staying. Uneaten food remains for later ticks.
-        Return rewards by agent ID: death -10, a food-efficiency reward from -1 to +1, and a one-time +5
+        Return rewards by agent ID: death -10, signed hunger-based eating rewards,
+        and a one-time +5
         for agents alive at the configured horizon. Ordinary survival earns 0.
         With horizon=None there is no end-survival bonus.
         Already-dead agents receive zero.
@@ -54,6 +57,9 @@ class World:
         occupied = {(agent.x, agent.y) for agent in self.agents if agent.alive}
         destinations = {}
         chosen_actions = {}
+        food_available_before_action = {
+            a.id: bool(self.food[a.y, a.x]) for a in self.agents if a.alive
+        }
         height, width = self.grid.shape
 
         for agent in self.agents:
@@ -86,6 +92,9 @@ class World:
                 agent.x, agent.y = destination
             gained = 0
             energy_before_eating = agent.energy
+            if (energy_before_eating < 30 and food_available_before_action[agent.id]
+                    and chosen_actions[agent.id] != Action.EAT):
+                self.missed_meals += 1  # Diagnostic only; never a reward penalty.
             if (chosen_actions[agent.id] == Action.EAT and agent.energy < 100
                     and self.food[agent.y, agent.x]):
                 self.food[agent.y, agent.x] = False

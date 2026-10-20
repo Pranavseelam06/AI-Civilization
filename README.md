@@ -171,14 +171,14 @@ food responsiveness; they do not establish full-world or multi-step performance.
 
 ### Current rewards
 
-- Food reward when consumed: **1 − 2 × (energy before eating ÷ 100)**.
+- Food reward when consumed: **1 − 2 × (energy before eating ÷ 100)**; Experiment 8’s objective is restored.
 - Death: **−10**, once when it occurs.
 - Alive at the configured episode end: **+5**, once.
 - Ordinary living tick or already-dead agent: **0**.
 
 At the final tick, eating and survival can combine for up to +6. Death on that tick
 earns −10, not the survival bonus. With no horizon, there is no episode-end
-survival bonus. Current training metadata records this as reward version 5. Version 2 used +1 per consumed food unit; version 3 used energy restored ÷ 25.
+survival bonus. Current training metadata records this as reward version 5 (restored to Experiment 8). Version 2 used +1 per consumed food unit; version 3 used energy restored ÷ 25.
 Experiments 1–3 used the earlier +5-per-living-tick objective and are retained
 as historical checkpoints. Experiment 4 uses the corrected objective.
 
@@ -288,3 +288,96 @@ python -m visualization.sim3d --checkpoint experiment_8.pt
 On 30 matched worlds it wasted about 0.5% of consumed food energy, versus 16.7%
 for Experiment 7 and 48.6% for Experiment 5; final survivors averaged 4.50, 4.70,
 and 6.10 respectively, so efficiency improved without improved survival.
+
+### Smooth positive hunger reward (Experiment 9, version 6)
+
+This reverted experiment used `0.1 + 0.9 * (1 - energy_before_eating / 100)` upon
+successful consumption, replacing the signed hunger formula. Eating at energy
+20 earns +0.82; at 50, +0.55; at 95, +0.145. No consumption earns zero.
+Death remains −10 and episode-end survival +5, with no forced hunger threshold.
+This tests whether always-positive eating rewards can balance survival and food
+efficiency; it does not assume early eating or conservation is always optimal.
+
+Experiment 9 is archived at `checkpoints/archive/experiment_9.pt`; this was a negative
+result: on 30 matched worlds it averaged 2.37 survivors and 57.1% food-energy
+waste, versus Experiment 8's 4.77 survivors and 0.5% waste, so it is not a
+recommended replacement; it is excluded from normal viewer selection.
+
+After Experiment 9, the code was restored to Experiment 8’s signed hunger
+reward (version 5); Experiment 10 subsequently tests a zero-clipped variant.
+
+### Zero-clipped hunger reward (Experiment 10, version 7)
+
+Consumed food earns `max(0, 1 - 2 * (energy_before_eating / 100))`.
+Below 50 energy it retains Experiment 8's positive food reward; at 50 or above
+it earns zero rather than a penalty or bonus. Not eating also earns zero.
+Death remains −10 and episode-end survival +5. Model, action masks, world
+mechanics, and training duration are unchanged for the comparison.
+
+```sh
+python -m visualization.sim3d --checkpoint experiment_10.pt
+```
+
+On 30 matched worlds, Experiment 10 averaged 5.13 final survivors versus
+Experiment 8's 3.70, but wasted 46.3% of food energy versus 0.7%; Experiment 5
+averaged 6.37 survivors and 48.6% waste on those same seeds. The change improves
+survival relative to Experiment 8 while giving up most of its food efficiency.
+These are exploratory single-training-seed results, not a general guarantee.
+
+### Low-energy missed-meal guidance (Experiment 11, version 8)
+
+Food earns `energy_restored / 25`, and an agent below 30 energy receives
+`-0.2 * (30 - energy_before_action) / 30` if food was underfoot before
+its action but it did not choose EAT. The penalty gradually increases as
+energy falls and is capped at −0.2. Missing actions count as STAY.
+
+There is no penalty for searching without food, arriving on food this tick,
+or choosing EAT. The check uses the pre-action state, not food that regrew or
+became reachable after the decision. Death and episode-survival rewards are
+unchanged; penalties may combine with death if the last available meal is skipped.
+This explicitly introduces a hand-chosen guidance threshold at 30 energy.
+
+```sh
+python -m visualization.sim3d --checkpoint experiment_11.pt
+```
+
+On 30 matched worlds Experiment 11 averaged 3.67 survivors and 52.6% wasted
+food energy, versus 2.17 survivors for Experiment 6 (same food reward without
+the missed-meal penalty) and 4.03 survivors with 0.5% waste for Experiment 8.
+It rarely skipped urgent available meals but did not solve the survival/efficiency
+tradeoff; these are single-training-seed results.
+
+### Active reference: Experiment 8
+
+The active code is restored to Experiment 8's signed hunger reward, with no
+missed-meal penalty; skipped-meal counters remain read-only diagnostics.
+Experiments 9–11 are archived under `checkpoints/archive/`, so `latest`
+selects Experiment 8 again. Earlier experiment descriptions above are historical.
+
+```sh
+python -m visualization.sim3d --checkpoint experiment_8.pt
+```
+
+### Longer training with periodic checkpoints (Experiment 12)
+
+```sh
+python -m learning.train --updates 1000 --ticks 128 --save-every 100 --log-every 100 --checkpoint checkpoints/experiment_12.pt
+```
+
+This keeps Experiment 8's reward and model unchanged and saves intermediate
+stages to `checkpoints/experiment_12/update_0100.pt`, `update_0200.pt`, and so on.
+Each file records its actual update count. The final checkpoint is separate.
+Intermediate saves do not consume training randomness.
+
+Choose a stage on validation seeds, then evaluate the fixed choice on a
+different test-seed set rather than selecting the best model on test results.
+
+Experiment 12's validation-selected 700-update checkpoint averaged 11.23 final
+survivors out of 12 on 30 independent test worlds, versus Experiment 8's 4.50,
+with no food-energy waste observed for the selected checkpoint; the final
+1,000-update model averaged only 6.80 survivors.
+See the [full stage-by-stage report](project-journal/experiment_12.md).
+
+```sh
+python -m visualization.sim3d --checkpoint experiment_12_best.pt
+```

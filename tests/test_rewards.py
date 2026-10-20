@@ -88,3 +88,47 @@ def test_partial_food_reward_combines_with_end_survival_bonus(world):
 def test_consumption_requires_pre_eating_energy_for_reward():
     with pytest.raises(ValueError,match='energy_before_eating'):
         calculate_reward(True,True,25)
+
+
+def test_signed_reward_decreases_with_energy():
+    rewards=[calculate_reward(True,True,min(25,100-energy),energy_before_eating=energy)
+             for energy in range(1,100)]
+    assert rewards[0] > 0 and rewards[-1] < 0
+    assert all(a>b for a,b in zip(rewards,rewards[1:]))
+
+
+@pytest.mark.parametrize('energy,penalty',[(30,0),(31,0),(29,0),(20,0),(1,0)])
+def test_no_reward_penalty_for_skipping_available_meal(world,energy,penalty):
+    world.agents=[AgentState(0,1,1,energy=energy)]
+    world.food[:]=False
+    world.food[1,1]=True
+    reward=world.step({})[0]
+    assert reward == pytest.approx(penalty + (-10 if energy==1 else 0))
+    assert world.missed_meals == int(energy<30)
+
+
+def test_no_penalty_for_food_that_requires_movement_to_reach(world):
+    world.agents=[AgentState(0,0,1,energy=20)]
+    world.food[:]=False
+    world.food[1,1]=True
+    assert world.step({0:Action.EAST})[0] == 0
+    assert world.missed_meals == 0
+    assert world.step({0:Action.EAT})[0] == pytest.approx(0.62)
+
+
+def test_skipped_meals_remain_diagnostic_only(world):
+    world.agents=[AgentState(0,1,1,energy=20)]
+    world.food[:]=False
+    world.food[1,1]=True
+    assert world.step({0:Action.EAST})[0] == 0
+    assert world.missed_meals == 1 and world.food[1,1]
+    world.reset(123)
+    assert world.missed_meals == 0
+
+
+def test_no_missed_meal_penalty_if_no_food_is_available(world):
+    world.agents=[AgentState(0,1,1,energy=20)]
+    world.food[:]=False
+    assert world.step({})[0] == 0
+    assert world.step({0:Action.EAT})[0] == 0
+    assert world.missed_meals == 0

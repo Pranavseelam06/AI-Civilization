@@ -72,6 +72,7 @@ def evaluate_episode(policy, seed, config, checkpoint=None):
            'mean_survival_ticks':survival_ticks/config.num_agents,
            'food_consumed':world.food_consumed,'total_reward':total_reward,
            'food_energy_gained':world.food_energy_gained,'food_energy_wasted':world.food_energy_wasted,
+           'missed_meals':world.missed_meals,
            'episode_ticks':world.tick,'agent_ticks':attempts,
            'move_attempts':move_attempts,'rejected_moves':rejected,
            'rejected_move_fraction':rejected/move_attempts if move_attempts else 0,

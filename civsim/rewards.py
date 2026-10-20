@@ -1,4 +1,4 @@
-"""Per-agent reward from the actual outcome of a simulation tick."""
+"""Per-agent rewards restored to Experiment 8's hunger-based objective."""
 
 
 REWARD_SPEC = {'version': 5, 'survive_episode': 5, 'death': -10,
@@ -9,11 +9,7 @@ REWARD_SPEC = {'version': 5, 'survive_episode': 5, 'death': -10,
 def calculate_reward(was_alive: bool, is_alive: bool, energy_restored: int,
                      episode_end: bool = False, *,
                      energy_before_eating: int | None = None) -> float:
-    """Reward eating based on hunger before consumption; no consumption earns zero.
-
-    Consumption always restores positive energy under the current world rules.
-    Death stays -10; end-of-episode survival stays +5.
-    """
+    """Reward actual eating based on pre-meal energy; no missed-meal penalty."""
     if not was_alive:
         return 0
     survival = 5 if is_alive and episode_end else 0
