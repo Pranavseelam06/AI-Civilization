@@ -1,10 +1,21 @@
 """Load a local PPO checkpoint for inference without updating its weights."""
 
+import pickle
 import numpy as np
 import torch
 
 from civsim.observations import observe_agent, movement_mask
 from learning.networks import ActorCritic, mask_action_logits
+from civsim.actions import Action
+
+
+def compatible_checkpoint(path):
+    """Exclude obsolete five-action checkpoints from automatic selection."""
+    try:
+        saved = torch.load(path, map_location="cpu", weights_only=True)
+        return saved["model_state_dict"]["actor.weight"].shape[0] == len(Action)
+    except (OSError, ValueError, KeyError, TypeError, RuntimeError, EOFError, pickle.UnpicklingError):
+        return False
 
 
 class LearnedPolicy:
@@ -12,6 +23,9 @@ class LearnedPolicy:
         saved = torch.load(path, map_location='cpu', weights_only=True)
         if not isinstance(saved, dict) or 'model_state_dict' not in saved:
             raise ValueError('Checkpoint must contain model_state_dict')
+        if saved['model_state_dict']['actor.weight'].shape[0] != len(Action):
+            raise ValueError('This checkpoint uses the old five-action automatic-eating rules. '
+                             'Train a new six-action checkpoint with explicit EAT.')
         environment = saved.get('metadata', {}).get('environment', {})
         # Legacy checkpoints keep their original unmasked behavior for comparison.
         self.action_masking = saved.get('metadata', {}).get('action_masking', False)

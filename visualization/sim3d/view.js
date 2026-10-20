@@ -120,7 +120,7 @@ export async function start() {
     }
     const alive = state.agents.filter(a=>a.alive).length;
     const horizon = state.config.horizon ?? '∞';
-    $('metrics').textContent = `Tick ${state.tick} / ${horizon} · Alive ${alive}/${state.agents.length} · Food ${state.food.length} · Eaten ${state.food_consumed}`;
+    $('metrics').textContent = `Tick ${state.tick} / ${horizon} · Alive ${alive}/${state.agents.length} · Food ${state.food.length} · Eaten ${state.food_consumed} · Wasted energy ${state.food_energy_wasted}`;
     $('agents').replaceChildren(...state.agents.map(a => {
       const row = document.createElement('div');
       row.textContent = `Agent ${a.id} · ${names[a.id%4]} · ${a.alive ? `${a.energy} energy` : 'dead'}`;

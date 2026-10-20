@@ -16,6 +16,7 @@ OBSERVATION_SIZE = 101  # Four 5 x 5 maps, followed by one energy value.
 def movement_mask(observation: np.ndarray) -> np.ndarray:
     """Legal destinations from local observation only; STAY is always allowed.
 
+    EAT is allowed only with food underfoot and energy below maximum.
     Matches pre-step occupancy rules. Contested empty destinations cannot be
     predicted from one observation and are still resolved by World.step().
     """
@@ -24,6 +25,7 @@ def movement_mask(observation: np.ndarray) -> np.ndarray:
     for action, (dx, dy) in MOVEMENT_DELTAS.items():
         if action != Action.STAY:
             mask[action] = not patch[1:4, 2+dy, 2+dx].any()
+    mask[Action.EAT] = bool(patch[0, 2, 2]) and observation[-1] < 1
     return mask
 
 

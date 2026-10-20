@@ -21,7 +21,7 @@ def test_rollout_shapes_and_weights_unchanged(tmp_path):
     assert env.world.tick == 3
     for row in rollout.transitions:
         assert row.observation.shape == row.next_observation.shape == (101,)
-        assert 0 <= row.action < 5
+        assert 0 <= row.action < 6
         assert np.isfinite([row.value,row.next_value,row.log_probability]).all()
         assert not row.terminated and not row.truncated
     for name,value in model.state_dict().items():

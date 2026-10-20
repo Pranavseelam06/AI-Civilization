@@ -9,7 +9,7 @@ from civsim.actions import Action, MOVEMENT_DELTAS
 from civsim.agents import AgentState
 from civsim.config import SimulationConfig
 from civsim.world import World
-from learning.inference import LearnedPolicy
+from learning.inference import LearnedPolicy, compatible_checkpoint
 
 
 CONDITIONS = {'none': None, 'north': Action.NORTH, 'south': Action.SOUTH,
@@ -55,7 +55,7 @@ def main():
     parser.add_argument('--output',type=Path)
     args=parser.parse_args()
     folder=Path(__file__).resolve().parents[1]/'checkpoints'
-    available=sorted(folder.glob('*.pt'),key=lambda p:p.stat().st_mtime,reverse=True)
+    available=sorted((p for p in folder.glob('*.pt') if compatible_checkpoint(p)),key=lambda p:p.stat().st_mtime,reverse=True)
     paths=[]
     for name in args.checkpoints:
         if name in ('all','latest'):
@@ -74,7 +74,7 @@ def main():
         results=probe_policy(policy,path)
         rows.extend(results)
         print(f'\n{path.name} — 50 energy, one adjacent food item:')
-        print('Food    Stay   North  South  East   West   Change toward food')
+        print('Food    Stay   North  South  East   West   Eat    Change toward food')
         for row in results:
             if row['energy']!=50:continue
             cells=' '.join(f"{row['p_'+a.name.lower()]:6.1%}" for a in Action)

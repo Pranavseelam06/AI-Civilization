@@ -12,7 +12,7 @@ def test_mask_uses_local_boundary_obstacle_and_living_occupancy(world):
     world.agents=[agent,AgentState(1,1,0)]
     world.grid[1,0]=1
     mask=movement_mask(observe_agent(world,agent))
-    np.testing.assert_array_equal(mask,[True,False,False,False,False])
+    np.testing.assert_array_equal(mask,[True,False,False,False,False,False])
     world.agents[1].alive=False
     mask=movement_mask(observe_agent(world,agent))
     assert mask[A.EAST]  # Bodies no longer occupy cells.
@@ -24,7 +24,7 @@ def test_mask_matches_world_destination_rules(world):
         assert mask[A.STAY]
         for action in A:
             outcome=movement_outcomes(world,{agent.id:action})[agent.id]
-            assert bool(mask[action]) == (outcome in ('stay','moved'))
+            assert bool(mask[action]) == (outcome in ('stay','moved','eat'))
 
 
 def test_mask_does_not_predict_simultaneous_contention(world):
@@ -80,3 +80,14 @@ def test_inference_masks_only_checkpoints_trained_with_masks(world,tmp_path):
     assert new.probabilities(world)[0][A.WEST]==0
     for _ in range(20):
         assert new.actions(world)[0] in (A.STAY,A.SOUTH,A.EAST)
+
+
+def test_eat_mask_requires_food_and_nonfull_energy(world):
+    agent=AgentState(0,3,3,energy=95)
+    world.agents=[agent]
+    world.food[:]=False
+    assert not movement_mask(observe_agent(world,agent))[A.EAT]
+    world.food[3,3]=True
+    assert movement_mask(observe_agent(world,agent))[A.EAT]
+    agent.energy=100
+    assert not movement_mask(observe_agent(world,agent))[A.EAT]

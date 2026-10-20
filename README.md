@@ -181,3 +181,42 @@ earns −10, not the survival bonus. With no horizon, there is no episode-end
 survival bonus. New training metadata records this as reward version 2.
 Experiments 1–3 used the earlier +5-per-living-tick objective and are retained
 as historical checkpoints. Experiment 4 uses the corrected objective.
+
+### Test waiting versus exploration
+
+```sh
+python -m experiments.compare_exploration --checkpoint checkpoints/experiment_5.pt
+```
+
+Runs 30 matched seeds for normal PPO and a diagnostic variant that replaces a
+sampled STAY with a random legal movement only when no food is visible. Agents
+with no legal movement keep STAY. Food-visible choices and existing movement
+choices are unchanged. The intervention uses a separate random generator.
+Episode CSV, paired summaries, and metadata are saved in `runs/exploration_*`.
+No checkpoint weights, rewards, or viewer behavior are changed. These are
+evaluation interventions on one checkpoint, not retraining or evidence of
+general improvement across independently trained policies.
+
+### Explicit eating (Experiment 5 onward)
+
+Agents now choose among six actions: STAY, NORTH, SOUTH, EAST, WEST, EAT.
+Food is consumed only by EAT on the agent's current cell; there is no automatic
+eating or coin flip. EAT restores up to 25 energy before the normal 1-energy
+tick cost. Empty-cell or full-energy EAT is a no-op except for that tick cost.
+Masks permit EAT only with food underfoot and energy below 100.
+
+The heuristic eats at 75 energy or below; the neural network chooses its own
+timing. Food still gives +1 per consumed unit, so explicit choice alone does
+not guarantee efficient use. World state, evaluation CSVs, and replay records
+track energy restored and energy wasted at the 100-energy cap. The 3D viewer
+shows the cumulative wasted energy.
+
+```sh
+python -m visualization.sim3d --checkpoint experiment_5.pt
+```
+
+Experiments 1–4 are historical five-action checkpoints trained with automatic
+eating. They remain on disk, but cannot be loaded into the new six-action
+world. The viewer and automatic evaluation/probe selection show only compatible
+checkpoints. Past evaluation CSVs describe the old rules and should not be
+compared directly against results from this changed task.

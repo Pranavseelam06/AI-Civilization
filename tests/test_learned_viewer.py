@@ -59,7 +59,7 @@ def test_invalid_checkpoint_preserves_current_session(checkpoints):
             session.reset(123,'ppo',name)
         assert session.state()==before
     (checkpoints/'bad.pt').write_bytes(b'invalid model')
-    with pytest.raises(ValueError,match='Cannot load PPO'):
+    with pytest.raises(ValueError):
         session.reset(123,'ppo','bad.pt')
     assert session.state()==before
 
@@ -69,3 +69,13 @@ def test_switching_back_to_heuristic_discards_learned_policy(checkpoints):
     session.reset(123,'ppo','east.pt')
     state=session.reset(123,'heuristic')
     assert session.learned is None and state['checkpoint'] is None
+
+
+def test_old_five_action_checkpoints_are_preserved_but_not_selected(checkpoints):
+    from learning.inference import LearnedPolicy
+    legacy=ActorCritic(action_count=5)
+    path=checkpoints/'old.pt'
+    torch.save({'model_state_dict':legacy.state_dict()},path)
+    assert path.exists() and 'old.pt' not in sim3d.checkpoint_names()
+    with pytest.raises(ValueError,match='old five-action'):
+        LearnedPolicy(path,SimulationConfig(),123)

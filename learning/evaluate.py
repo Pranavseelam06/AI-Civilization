@@ -20,7 +20,7 @@ from civsim.rewards import REWARD_SPEC
 from civsim.observations import nearest_food
 from experiments.diagnostics import movement_outcomes, near_corner
 from learning.baselines import random_policy, heuristic_policy
-from learning.inference import LearnedPolicy
+from learning.inference import LearnedPolicy, compatible_checkpoint
 
 
 REJECTED = ('boundary','obstacle','occupied','contested','invalid')
@@ -63,7 +63,7 @@ def evaluate_episode(policy, seed, config, checkpoint=None):
                     **{f'p_{a.name.lower()}':probabilities[agent.id][a.value] for a in Action}})
         total_reward += sum(world.step(actions).values())
     attempts = sum(counts.values())
-    move_attempts = attempts - counts['stay']
+    move_attempts = attempts - counts['stay'] - counts['eat'] - counts['eat_unavailable']
     rejected = sum(counts[k] for k in REJECTED)
     row = {'policy':policy, 'checkpoint':str(checkpoint) if checkpoint else '',
            'action_masking':bool(learned and learned.action_masking),
@@ -71,11 +71,12 @@ def evaluate_episode(policy, seed, config, checkpoint=None):
            'survivors':sum(a.alive for a in world.agents),
            'mean_survival_ticks':survival_ticks/config.num_agents,
            'food_consumed':world.food_consumed,'total_reward':total_reward,
+           'food_energy_gained':world.food_energy_gained,'food_energy_wasted':world.food_energy_wasted,
            'episode_ticks':world.tick,'agent_ticks':attempts,
            'move_attempts':move_attempts,'rejected_moves':rejected,
            'rejected_move_fraction':rejected/move_attempts if move_attempts else 0,
            'corner_tick_fraction':corner_ticks/attempts if attempts else 0,
-           **{f'actions_{k}':counts[k] for k in ('stay','moved',*REJECTED)}}
+           **{f'actions_{k}':counts[k] for k in ('stay','moved','eat','eat_unavailable',*REJECTED)}}
     return row,corner_samples
 
 
@@ -98,12 +99,12 @@ def main():
         parser.error('episodes must be positive; start-seed must be nonnegative')
     torch.set_num_threads(1)
     folder=Path(__file__).resolve().parents[1]/'checkpoints'
-    available=sorted(folder.glob('*.pt'),key=lambda p:p.stat().st_mtime,reverse=True)
+    available=sorted((p for p in folder.glob('*.pt') if compatible_checkpoint(p)),key=lambda p:p.stat().st_mtime,reverse=True)
     paths=[]
     for requested in args.checkpoints:
         if requested in ('latest','all'):
             if not available:
-                parser.error('No checkpoints found; train a model first')
+                parser.error('No compatible six-action checkpoints found; train a new model first')
             paths.extend(available[:1] if requested=='latest' else available)
         else:
             path=Path(requested)

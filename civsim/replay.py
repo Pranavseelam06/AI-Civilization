@@ -17,6 +17,7 @@ class ReplayRecorder:
         path.parent.mkdir(parents=True, exist_ok=True)
         self.file = path.open('w')
         self.write({'type': 'header', 'version': 1, 'config': asdict(world.config),
+                    'eating_mode': 'explicit_action',
                     'seed': seed, 'policy_seed': policy_seed, 'policy': 'heuristic',
                     'terrain': world.grid.tolist()})
         self.record(world)
@@ -29,12 +30,16 @@ class ReplayRecorder:
         self.write({'type': 'frame', 'tick': world.tick,
                     'agents': [asdict(a) for a in world.agents],
                     'food': np.argwhere(world.food).tolist(),
-                    'food_consumed': world.food_consumed})
+                    'food_consumed': world.food_consumed,
+                    'food_energy_gained': world.food_energy_gained,
+                    'food_energy_wasted': world.food_energy_wasted})
 
     def finish(self, world):
         self.write({'type': 'summary', 'tick': world.tick,
                     'survivors': sum(a.alive for a in world.agents),
-                    'food_consumed': world.food_consumed})
+                    'food_consumed': world.food_consumed,
+                    'food_energy_gained': world.food_energy_gained,
+                    'food_energy_wasted': world.food_energy_wasted})
         self.file.close()
 
 
@@ -69,7 +74,9 @@ def load_replay(path):
                 raise ValueError('Agent outside grid')
             frames.append(SimpleNamespace(config=config, grid=terrain.copy(), food=food,
                           agents=agents, tick=record['tick'],
-                          food_consumed=record['food_consumed']))
+                          food_consumed=record['food_consumed'],
+                          food_energy_gained=record.get('food_energy_gained',0),
+                          food_energy_wasted=record.get('food_energy_wasted',0)))
         if not frames:
             raise ValueError('Replay contains no frames')
         return frames, summary

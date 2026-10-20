@@ -18,6 +18,7 @@ import torch
 from civsim.environments import SimulationEnv
 from civsim.observations import movement_mask
 from civsim.rewards import REWARD_SPEC
+from civsim.actions import Action
 from learning.networks import ActorCritic
 from learning.ppo import PPOConfig, ppo_update
 
@@ -120,7 +121,8 @@ def save_rollout(path: Path, rollout: Rollout, config, torch_seed: int) -> None:
                 'torch_version': str(torch.__version__), 'world_ticks': rollout.world_ticks,
                 'policy': 'ActorCritic rollout (weights not embedded)',
                 'action_masking': True, 'reward_spec': REWARD_SPEC,
-                'bootstrap_time_limits': False, 'format_version': 3}
+                'bootstrap_time_limits': False, 'format_version': 4,
+                'eating_mode': 'explicit_action', 'actions': [a.name for a in Action]}
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open('wb') as output:
         np.savez_compressed(output, **arrays, metadata=json.dumps(metadata))
@@ -168,9 +170,10 @@ def main():
                 'ppo': asdict(ppo_config), 'updates': args.updates, 'ticks_per_update': args.ticks,
                 'torch_version': str(torch.__version__), 'git_commit': commit,
                 'device': 'cpu', 'threads': args.threads, 'action_masking': True,
-                'mask_version': 1,
+                'mask_version': 2,
                 'reward_spec': REWARD_SPEC, 'bootstrap_time_limits': False,
-                'architecture': {'observation_size': 101, 'hidden_units': [128,128], 'action_count': 5}}
+                'eating_mode': 'explicit_action', 'actions': [a.name for a in Action],
+                'architecture': {'observation_size': 101, 'hidden_units': [128,128], 'action_count': len(Action)}}
     (run_dir/'config.json').write_text(json.dumps(metadata,indent=2))
     started = time.perf_counter()
     total_ticks = total_transitions = 0

@@ -15,9 +15,10 @@ class World:
         self.config = config
         self.grid = create_grid(config.width, config.height)
         self.food = np.zeros_like(self.grid, dtype=bool)
-        self.eating_rng = np.random.default_rng(0)
         self.regrowth_rng = np.random.default_rng(1)
         self.food_consumed = 0
+        self.food_energy_gained = 0
+        self.food_energy_wasted = 0
         self.agents = []
         self.tick = 0
 
@@ -25,12 +26,13 @@ class World:
         """Create a fresh grid and population; the same seed repeats the positions."""
         self.grid = create_grid(self.config.width, self.config.height)
         self.agents = spawn_agents(self.grid, self.config.num_agents, seed)
-        # Independent streams keep eating decisions separate from food placement.
-        food_seed, eating_seed, regrowth_seed = np.random.SeedSequence(seed).spawn(3)
+        # Reserve the former eating stream so placement/regrowth seeds stay stable.
+        food_seed, _, regrowth_seed = np.random.SeedSequence(seed).spawn(3)
         food_rng = np.random.default_rng(food_seed)
-        self.eating_rng = np.random.default_rng(eating_seed)
         self.regrowth_rng = np.random.default_rng(regrowth_seed)
         self.food_consumed = 0
+        self.food_energy_gained = 0
+        self.food_energy_wasted = 0
         # Start with food on about 10% of the land; at most one unit per cell.
         self.food = (food_rng.random(self.grid.shape) < 0.1) & (self.grid == 0)
         self.tick = 0
@@ -41,7 +43,7 @@ class World:
         Cells occupied at the start of the tick cannot be entered, even if
         their occupant moves away. Contenders for the same empty cell all stay.
         Dead agents do not occupy cells or block movement.
-        After movement, living agents on food have a seeded 50% chance to eat.
+        EAT stays in place and consumes food there if energy is below 100.
         Eating restores 25 energy (capped at 100), then each living agent loses
         one energy, including when staying. Uneaten food remains for later ticks.
         Return rewards by agent ID: death -10, eating +1, and a one-time +5
@@ -51,6 +53,7 @@ class World:
         """
         occupied = {(agent.x, agent.y) for agent in self.agents if agent.alive}
         destinations = {}
+        chosen_actions = {}
         height, width = self.grid.shape
 
         for agent in self.agents:
@@ -60,6 +63,9 @@ class World:
                 action = Action(actions.get(agent.id, Action.STAY))
             except (ValueError, TypeError):
                 action = Action.STAY
+            chosen_actions[agent.id] = action
+            if action == Action.EAT:
+                continue
             dx, dy = MOVEMENT_DELTAS[action]
             x, y = agent.x + dx, agent.y + dy
             if (
@@ -79,11 +85,15 @@ class World:
             if destination is not None and counts[destination] == 1:
                 agent.x, agent.y = destination
             ate_food = False
-            if self.food[agent.y, agent.x] and self.eating_rng.random() < 0.5:
+            if (chosen_actions[agent.id] == Action.EAT and agent.energy < 100
+                    and self.food[agent.y, agent.x]):
                 ate_food = True
                 self.food[agent.y, agent.x] = False
                 self.food_consumed += 1
-                agent.energy = min(100, agent.energy + 25)
+                gained = min(25, 100 - agent.energy)
+                agent.energy += gained
+                self.food_energy_gained += gained
+                self.food_energy_wasted += 25 - gained
             agent.energy = max(0, agent.energy - 1)
             if agent.energy == 0:
                 agent.alive = False
@@ -102,5 +112,4 @@ class World:
         return rewards
 
 
-# TODO: Replace the temporary eating coin flip with policy decisions later.
 # TODO: Return useful transition results without rendering or policy decisions.

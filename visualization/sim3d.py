@@ -22,9 +22,14 @@ CHECKPOINTS = STATIC.parents[1] / 'checkpoints'
 
 
 def checkpoint_names():
+    try:
+        from learning.inference import compatible_checkpoint
+    except ImportError:
+        return []
     return [p.name for p in sorted(CHECKPOINTS.glob('*.pt'),
                                   key=lambda p: p.stat().st_mtime, reverse=True)
-            if p.is_file() and p.resolve().parent == CHECKPOINTS.resolve()]
+            if p.is_file() and p.resolve().parent == CHECKPOINTS.resolve()
+            and compatible_checkpoint(p)]
 
 
 class SimulationSession:
@@ -63,6 +68,7 @@ class SimulationSession:
                 'action_masking': bool(self.learned and self.learned.action_masking),
                 'tick': w.tick, 'agents': [asdict(a) for a in w.agents],
                 'food': np.argwhere(w.food).tolist(), 'food_consumed': w.food_consumed,
+                'food_energy_wasted': w.food_energy_wasted,
                 'finished': alive == 0 or (w.config.horizon is not None and w.tick >= w.config.horizon)}
 
     def step(self):

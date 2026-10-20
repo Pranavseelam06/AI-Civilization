@@ -50,6 +50,8 @@ def run_episode(policy: str, seed: int, config: SimulationConfig) -> dict:
         "survivors": sum(a.alive for a in world.agents),
         "mean_survival_ticks": survival_ticks / config.num_agents,
         "food_consumed": world.food_consumed,
+        "food_energy_gained": world.food_energy_gained,
+        "food_energy_wasted": world.food_energy_wasted,
     }
 
 

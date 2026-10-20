@@ -9,6 +9,7 @@ class Action(IntEnum):
     SOUTH = 2
     EAST = 3
     WEST = 4
+    EAT = 5
 
 
 MOVEMENT_DELTAS = {
@@ -20,5 +21,5 @@ MOVEMENT_DELTAS = {
 }
 
 
-# TODO: Later add harvest, eat, and share.
+# TODO: Later add harvest and share.
 # Movement validation and conflict resolution live in World.step().
