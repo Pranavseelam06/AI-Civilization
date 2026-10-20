@@ -8,7 +8,9 @@ class AgentState:
     id: int
     x: int
     y: int
+    z: int = 0
+    energy: int = 100
+    alive: bool = True
 
-
-# TODO: Add energy, inventory, and alive status when needed.
+# TODO: Add inventory when needed.
 # TODO: Keep learned policies separate from mutable simulation state.
