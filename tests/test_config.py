@@ -1,8 +1,7 @@
-"""Replace each skipped TODO with a meaningful behavioral test."""
+from civsim.config import SimulationConfig
 
-import pytest
-
-
-def test_reject_invalid_configuration():
-    # TODO: Arrange a small controlled scenario, act, and assert expected behavior.
-    pytest.skip("TODO: implement reject_invalid_configuration")
+def test_starting_settings():
+    config = SimulationConfig()
+    assert (config.width, config.height, config.num_agents, config.horizon) == (32, 32, 12, 500)
+    assert SimulationConfig(horizon=None).horizon is None
+# TODO: Test validation when configuration validation is implemented.

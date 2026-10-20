@@ -1,18 +1,16 @@
-"""Replace each skipped TODO with a meaningful behavioral test."""
+from civsim.agents import AgentState
+from civsim.actions import Action
 
-import pytest
+def test_death_and_dead_agent_inactivity(world):
+    world.food[:] = False
+    world.agents = [AgentState(0,0,0,energy=1)]
+    world.step({})
+    assert world.agents[0].energy == 0 and not world.agents[0].alive
+    world.step({0:Action.EAST})
+    assert world.agents[0].x == 0 and world.agents[0].energy == 0
 
-
-def test_dead_agents_cannot_act():
-    # TODO: Arrange a small controlled scenario, act, and assert expected behavior.
-    pytest.skip("TODO: implement dead_agents_cannot_act")
-
-
-def test_all_dead_terminates():
-    # TODO: Arrange a small controlled scenario, act, and assert expected behavior.
-    pytest.skip("TODO: implement all_dead_terminates")
-
-
-def test_horizon_truncates():
-    # TODO: Arrange a small controlled scenario, act, and assert expected behavior.
-    pytest.skip("TODO: implement horizon_truncates")
+def test_dead_agents_do_not_block(world):
+    world.agents = [AgentState(0,0,0),AgentState(1,1,0,energy=0,alive=False)]
+    world.step({0:Action.EAST})
+    assert world.agents[0].x == 1
+# TODO: Environment termination/truncation contract is not implemented yet.

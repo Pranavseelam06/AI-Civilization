@@ -1,12 +1,14 @@
 # AI Civilization
 
+[![Tests](https://github.com/Pranavseelam06/AI-Civilization/actions/workflows/tests.yml/badge.svg)](https://github.com/Pranavseelam06/AI-Civilization/actions/workflows/tests.yml)
+
 AI Civilization is an experimental artificial-life project exploring whether agents can learn a communication protocol with no predefined symbol meanings that improves cooperation in a changing simulated world.
 
 The project starts with a small ecosystem: agents observe their surroundings, move through a grid, collect food, and manage energy. Later stages introduce cooperative tasks and a limited signaling channel to study when learned communication becomes useful.
 
 ## Project status
 
-Early development: the repository currently contains a Python scaffold, example configuration, TODO modules, and skipped test placeholders. The simulator, learning system, and replay viewer are not implemented yet. There are no experimental results to report.
+Early development: a seeded grid simulator now supports movement, energy, death, food consumption, and regeneration. Random and heuristic policies, baseline evaluation, a live viewer, and saved replay playback are implemented. Behavioral tests cover these features; model training and learned communication remain future work.
 
 ## Research goals
 
@@ -48,7 +50,9 @@ python -m pip install -e '.[dev,viewer]'
 python -m pytest
 ```
 
-Tests currently skip until their behavior is implemented. The experiment and viewer modules are placeholders and do not yet run simulations or display replays.
+Run `python -m pytest` for behavioral tests. GitHub Actions runs the suite on pushes and pull requests using Python 3.10 and 3.14; the badge above reports its status. Tests run headlessly without requiring Pygame.
+
+Run `python -m visualization.live_viewer` to watch the simulation or `python -m experiments.run_baselines` to compare random and heuristic policies. The live viewer prints the recording path; play it with `python -m visualization.pygame_viewer --replay runs/YOUR_FILENAME.jsonl`.
 
 ## Evaluation principles
 
