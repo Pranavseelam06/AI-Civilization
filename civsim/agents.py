@@ -1,4 +1,14 @@
-"""Agent state — intentionally unimplemented learning scaffold."""
+"""Basic agent identity and grid position."""
 
-# TODO: Define an AgentState dataclass with ID, position, energy, inventory, and alive status.
+from dataclasses import dataclass
+
+
+@dataclass
+class AgentState:
+    id: int
+    x: int
+    y: int
+
+
+# TODO: Add energy, inventory, and alive status when needed.
 # TODO: Keep learned policies separate from mutable simulation state.

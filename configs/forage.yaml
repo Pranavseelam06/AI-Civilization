@@ -2,8 +2,8 @@
 seed: 123
 width: 32
 height: 32
-num_agents: 24
-horizon: 500
+num_agents: 12
+horizon: 500  # Later: null for no tick limit (Python None).
 observation_radius: 2
 # TODO: Choose obstacle density, initial energy, maximum energy, inventory capacity,
 # movement/idle costs, food abundance, and regeneration settings.
