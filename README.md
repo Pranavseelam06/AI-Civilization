@@ -171,14 +171,14 @@ food responsiveness; they do not establish full-world or multi-step performance.
 
 ### Current rewards
 
-- Food reward when consumed: **2 × (energy restored ÷ 25) − 1** (−1 to +1).
+- Food reward when consumed: **1 − 2 × (energy before eating ÷ 100)**.
 - Death: **−10**, once when it occurs.
 - Alive at the configured episode end: **+5**, once.
 - Ordinary living tick or already-dead agent: **0**.
 
 At the final tick, eating and survival can combine for up to +6. Death on that tick
 earns −10, not the survival bonus. With no horizon, there is no episode-end
-survival bonus. Current training metadata records this as reward version 4. Version 2 used +1 per consumed food unit; version 3 used energy restored ÷ 25.
+survival bonus. Current training metadata records this as reward version 5. Version 2 used +1 per consumed food unit; version 3 used energy restored ÷ 25.
 Experiments 1–3 used the earlier +5-per-living-tick objective and are retained
 as historical checkpoints. Experiment 4 uses the corrected objective.
 
@@ -242,7 +242,7 @@ Experiment 6 is an experimental checkpoint, not an established improvement.
 On 30 matched evaluation seeds it underperformed Experiment 5 in both survival
 and food-energy efficiency; keep Experiment 5 as the stronger reference.
 
-### Current signed food reward (version 4)
+### Signed food-efficiency reward (Experiment 7, version 4)
 
 Consumed food earns `2 * (energy_restored / 25) - 1`. Restoring 25 energy
 earns +1; restoring 5 earns −0.6; restoring 1 earns −0.92. No consumption earns
@@ -268,3 +268,23 @@ but fewer final survivors (4.97 versus 5.70); these are single-training-seed res
 - [Experiment log](project-journal/experiment_log.md) — one-sentence summaries of experiment changes and results.
 
 These journal files are intended for the public repository; personal planning documents remain local.
+
+### Hunger-based eating reward (Experiment 8, version 5)
+
+Consumed food now earns `1 - 2 * (energy_before_eating / 100)`, replacing the
+previous food reward rather than adding another bonus. At energy 20 it earns
++0.6; at 50 it earns 0; at 95 it earns −0.9. No food consumption earns zero,
+even when an agent is hungry. Death stays −10 and episode survival stays +5.
+There is no forced eating action or penalty for not eating below an energy
+threshold; the policy still decides when to eat. This shaping may encourage
+risky delays, so both survival and waste must be evaluated.
+
+Experiment 8 is available with:
+
+```sh
+python -m visualization.sim3d --checkpoint experiment_8.pt
+```
+
+On 30 matched worlds it wasted about 0.5% of consumed food energy, versus 16.7%
+for Experiment 7 and 48.6% for Experiment 5; final survivors averaged 4.50, 4.70,
+and 6.10 respectively, so efficiency improved without improved survival.

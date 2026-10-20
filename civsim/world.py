@@ -85,6 +85,7 @@ class World:
             if destination is not None and counts[destination] == 1:
                 agent.x, agent.y = destination
             gained = 0
+            energy_before_eating = agent.energy
             if (chosen_actions[agent.id] == Action.EAT and agent.energy < 100
                     and self.food[agent.y, agent.x]):
                 self.food[agent.y, agent.x] = False
@@ -98,7 +99,10 @@ class World:
                 agent.alive = False
             episode_end = (self.config.horizon is not None
                            and self.tick + 1 == self.config.horizon)
-            rewards[agent.id] = calculate_reward(True, agent.alive, gained, episode_end)
+            rewards[agent.id] = calculate_reward(
+                True, agent.alive, gained, episode_end,
+                energy_before_eating=energy_before_eating,
+            )
         self.tick += 1
         if self.tick % 20 == 0:
             # Empty means no food and no living agent on walkable land.

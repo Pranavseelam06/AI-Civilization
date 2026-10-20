@@ -6,12 +6,12 @@ from civsim.actions import Action
 from civsim.rewards import calculate_reward
 
 
-@pytest.mark.parametrize('was_alive,is_alive,restored,expected', [
-    (True,True,0,0), (True,True,25,1), (True,True,5,-0.6),
-    (True,False,0,-10), (False,False,0,0),
+@pytest.mark.parametrize('was_alive,is_alive,restored,before,expected', [
+    (True,True,0,50,0), (True,True,25,20,0.6), (True,True,5,95,-0.9),
+    (True,False,0,1,-10), (False,False,0,0,0),
 ])
-def test_reward_values(was_alive,is_alive,restored,expected):
-    assert calculate_reward(was_alive,is_alive,restored) == pytest.approx(expected)
+def test_reward_values(was_alive,is_alive,restored,before,expected):
+    assert calculate_reward(was_alive,is_alive,restored,energy_before_eating=before) == pytest.approx(expected)
 
 
 def test_step_rewards_only_successful_events(world):
@@ -19,7 +19,7 @@ def test_step_rewards_only_successful_events(world):
                     AgentState(2,5,5,energy=0,alive=False), AgentState(3,7,7,energy=50)]
     world.food[:] = False
     world.food[7,7] = True
-    assert world.step({3:Action.EAT}) == {0:0, 1:-10, 2:0, 3:1}
+    assert world.step({3:Action.EAT}) == {0:0, 1:-10, 2:0, 3:0}
     assert world.food_consumed == 1
     assert world.step({}) == {0:0, 1:0, 2:0, 3:0}
 
@@ -34,7 +34,7 @@ def test_failed_eating_has_no_food_bonus(world):
 def test_eating_before_energy_drain_prevents_death(world):
     world.agents = [AgentState(0,1,1,energy=1)]
     world.food[1,1] = True
-    assert world.step({0:Action.EAT}) == {0:1}
+    assert world.step({0:Action.EAT})[0] == pytest.approx(0.98)
     assert world.agents[0].alive and world.agents[0].energy == 25
 
 
@@ -52,7 +52,7 @@ def test_food_and_survival_bonus_can_combine(world):
     world.agents = [AgentState(0,1,1,energy=50),AgentState(1,3,3,energy=1)]
     world.food[:] = False
     world.food[1,1] = True
-    assert world.step({0:Action.EAT}) == {0:6,1:-10}
+    assert world.step({0:Action.EAT}) == {0:5,1:-10}
     assert world.step({}) == {0:0,1:0}
 
 
@@ -63,8 +63,8 @@ def test_unlimited_world_has_no_survival_bonus(world):
 
 
 @pytest.mark.parametrize('energy,expected_gain,expected_reward',[
-    (50,25,1.0),(75,25,1.0),(87,13,0.04),(88,12,-0.04),
-    (95,5,-0.6),(99,1,-0.92),(100,0,0.0),
+    (20,25,0.6),(50,25,0.0),(75,25,-0.5),(87,13,-0.74),(88,12,-0.76),
+    (95,5,-0.9),(99,1,-0.98),(100,0,0.0),
 ])
 def test_food_reward_uses_actual_energy_before_tick_cost(world,energy,expected_gain,expected_reward):
     world.agents=[AgentState(0,1,1,energy=energy)]
@@ -82,4 +82,9 @@ def test_partial_food_reward_combines_with_end_survival_bonus(world):
     world.config.horizon=1
     world.agents=[AgentState(0,1,1,energy=95)]
     world.food[1,1]=True
-    assert world.step({0:Action.EAT})[0] == pytest.approx(4.4)
+    assert world.step({0:Action.EAT})[0] == pytest.approx(4.1)
+
+
+def test_consumption_requires_pre_eating_energy_for_reward():
+    with pytest.raises(ValueError,match='energy_before_eating'):
+        calculate_reward(True,True,25)

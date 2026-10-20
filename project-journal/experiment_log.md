@@ -10,6 +10,8 @@ Each entry is one sentence; results are exploratory and evaluation seeds differ 
 - **Experiment 6 — October 20, 2026:** Rewarding energy restored divided by 25 for 200 updates reduced survival to 1.97 agents per episode and increased wasted food energy to 58.0% on the same seeds as Experiment 5.
 - **Experiment 7 — October 20, 2026:** After 200 updates with signed food rewards, Experiment 7 wasted 16.8% of food energy versus Experiment 5’s 48.5% across 30 matched worlds, with average survival of 392 versus 383 ticks but fewer final survivors (4.97 versus 5.70).
 
+- **Experiment 8 — October 20, 2026:** After 200 updates with hunger-based eating rewards, food-energy waste fell to 0.5% across 30 matched worlds, but 4.50 agents survived versus Experiment 5’s 6.10, with eating probabilities responding strongly to hunger in a controlled probe.
+
 ## Additional diagnostic experiments
 
 - **Food-direction probe — October 20, 2026:** Controlled food relocation exposed weak food responsiveness in Experiment 3 and strong direction-specific responses in Experiment 4.
