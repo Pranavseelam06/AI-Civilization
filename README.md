@@ -57,3 +57,22 @@ Run `python -m visualization.live_viewer` to watch the simulation or `python -m 
 ## Evaluation principles
 
 Success is measured through reproducible experiments rather than visual appearance alone. Communication claims will require performance improvements over controls, sensitivity to message removal or shuffling, and evidence that signals carry task-relevant information. Negative results and limitations will be reported alongside successful experiments.
+
+## 3D simulation viewer
+
+With the project installed and your virtual environment active:
+
+```sh
+python -m visualization.sim3d
+```
+
+Open http://127.0.0.1:8001 and press **Start**. The viewer displays the complete
+32 × 32 world with 12 agents, berry bushes, energy, death, and food regeneration.
+Pause, step, adjust speed, or reset with a world seed and random/heuristic policy.
+Drag to orbit, scroll to zoom, and right-drag to pan.
+
+This uses the existing Python simulation; character appearances are cosmetic.
+The browser downloads the free Three.js rendering library on loading, so an
+internet connection is currently required. No API key or paid service is needed.
+The static single-model preview remains available with
+`python -m visualization.model_preview` on port 8000.

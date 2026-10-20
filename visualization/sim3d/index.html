@@ -1,0 +1,23 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Civilization · Live world</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#283d40;color:#edf3ea;font:14px system-ui}canvas{display:block;width:100%;height:100vh}aside{position:absolute;top:16px;left:16px;width:290px;padding:18px;background:#14201fed;border:1px solid #ffffff18;border-radius:14px;max-height:95vh;overflow:auto}h1{margin:0;font-size:22px}p{line-height:1.5;color:#c5d6c6}button,select,input{font:inherit;border:0;border-radius:6px;padding:8px;background:#e7eddf;color:#18251e}button{cursor:pointer}button:disabled{opacity:.4}label{display:block;margin:12px 0 6px}input[type=number]{width:100%}input[type=range]{width:100%;padding:0}.buttons{display:flex;gap:8px;margin-top:12px}#metrics{line-height:1.8;font-variant-numeric:tabular-nums}#status{font-size:12px}#status.error{color:#ffb6ac}details{margin-top:12px}#agents{font-size:12px;line-height:1.8}.note{font-size:12px}
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"}}</script>
+</head><body><aside>
+<h1>AI Civilization</h1><p>A small world learning to survive.</p>
+<div id="metrics">Loading world…</div>
+<div class="buttons"><button id="play" disabled>Start</button><button id="step" disabled>Step</button><button id="camera" disabled>Camera</button></div>
+<label for="speed">Speed: <span id="rate">10</span> ticks/sec</label><input id="speed" type="range" min="1" max="30" value="10">
+<label for="policy">Policy</label><select id="policy"><option value="heuristic">Heuristic · seek food</option><option value="random">Random · explore</option></select>
+<label for="seed">World seed</label><input id="seed" type="number" min="0" max="4294967295" step="1" value="123">
+<div class="buttons"><button id="reset" disabled>Reset world</button></div>
+<p class="note">Policy and seed apply on reset. Drag to orbit, scroll to zoom, right-drag to pan. Space pauses.</p>
+<details><summary>Agent energy</summary><div id="agents"></div></details>
+<p class="note">Character appearances are visual only. No age or gender behavior is simulated.</p><p id="status" role="status">Loading models…</p>
+</aside>
+<script type="module">
+try {const {start}=await import('./view.js'); await start();}
+catch(error){const s=document.querySelector('#status');s.className='error';s.textContent=`Unable to start: ${error.message}. Check your connection for the Three.js download.`;console.error(error);}
+</script></body></html>

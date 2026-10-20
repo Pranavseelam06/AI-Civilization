@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Civilization · Model preview</title>
+<style>
+body{margin:0;background:#192526;color:#eef3ed;font:15px system-ui}canvas{display:block;width:100%;height:100vh}aside{position:absolute;top:16px;left:16px;max-width:330px;background:#14201fee;padding:18px;border-radius:12px;box-shadow:0 8px 40px #0003}h1{font-size:20px;margin:0 0 8px}p{line-height:1.5;margin:8px 0}select,button{font:inherit;padding:7px;margin:5px 0;background:#eff2e9;color:#16251d;border:0;border-radius:5px}#status{font-size:13px;color:#b7d9bc}#status.error{color:#ffb6ac}
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"}}</script>
+</head>
+<body>
+<aside><h1>Model preview</h1><p>One person, one grass tile, one berry bush.</p>
+<label for="character">Character </label><select id="character"><option value="man">Man</option><option value="woman">Woman</option><option value="boy">Boy</option><option value="girl">Girl</option></select>
+<button id="reset">Reset camera</button>
+<p>Drag to orbit · Scroll to zoom<br>Right-drag to pan</p>
+<p>Models are automatically centered and scaled for inspection. This is a static preview.</p>
+<p id="status" role="status">Loading 3D viewer…</p></aside>
+<script type="module">
+const status=document.querySelector('#status');
+try {const {start}=await import('./preview.js');await start();}
+catch(error){status.className='error';status.textContent=`Could not load preview: ${error.message}. The free Three.js library needs an internet connection.`;console.error(error);}
+</script>
+</body></html>
