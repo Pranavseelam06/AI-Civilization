@@ -171,14 +171,14 @@ food responsiveness; they do not establish full-world or multi-step performance.
 
 ### Current rewards
 
-- Each food unit eaten: **+1**.
+- Food reward when consumed: **2 × (energy restored ÷ 25) − 1** (−1 to +1).
 - Death: **−10**, once when it occurs.
 - Alive at the configured episode end: **+5**, once.
 - Ordinary living tick or already-dead agent: **0**.
 
-At the final tick, eating and survival can combine for +6. Death on that tick
+At the final tick, eating and survival can combine for up to +6. Death on that tick
 earns −10, not the survival bonus. With no horizon, there is no episode-end
-survival bonus. New training metadata records this as reward version 2.
+survival bonus. Current training metadata records this as reward version 4. Version 2 used +1 per consumed food unit; version 3 used energy restored ÷ 25.
 Experiments 1–3 used the earlier +5-per-living-tick objective and are retained
 as historical checkpoints. Experiment 4 uses the corrected objective.
 
@@ -206,8 +206,8 @@ tick cost. Empty-cell or full-energy EAT is a no-op except for that tick cost.
 Masks permit EAT only with food underfoot and energy below 100.
 
 The heuristic eats at 75 energy or below; the neural network chooses its own
-timing. Food still gives +1 per consumed unit, so explicit choice alone does
-not guarantee efficient use. World state, evaluation CSVs, and replay records
+timing. Experiment 5 used +1 per consumed unit. Experiment 6 onward rewards actual
+energy restored / 25, reducing the immediate reward for wasting food. World state, evaluation CSVs, and replay records
 track energy restored and energy wasted at the 100-energy cap. The 3D viewer
 shows the cumulative wasted energy.
 
@@ -220,3 +220,51 @@ eating. They remain on disk, but cannot be loaded into the new six-action
 world. The viewer and automatic evaluation/probe selection show only compatible
 checkpoints. Past evaluation CSVs describe the old rules and should not be
 compared directly against results from this changed task.
+
+### Food efficiency reward (Experiment 6)
+
+Eating at 50 energy restores 25 and earns +1; at 95 it restores 5 and earns
++0.2; at 99 it restores 1 and earns +0.04. Rewards use restored energy before
+the normal tick cost. Death remains −10; surviving the episode remains +5 once.
+Energy limits, food costs, regrowth, action masking, and the network are unchanged.
+This reduces wasteful eating's immediate reward but does not guarantee
+long-term conservation or cooperation between agents.
+
+```sh
+python -m visualization.sim3d --checkpoint experiment_6.pt
+```
+
+Experiments 5 and 6 share the six-action dynamics and can be compared on matched
+world seeds. Evaluation always reports rewards under the current reward rule;
+checkpoint metadata preserves the objective each policy was trained on.
+
+Experiment 6 is an experimental checkpoint, not an established improvement.
+On 30 matched evaluation seeds it underperformed Experiment 5 in both survival
+and food-energy efficiency; keep Experiment 5 as the stronger reference.
+
+### Current signed food reward (version 4)
+
+Consumed food earns `2 * (energy_restored / 25) - 1`. Restoring 25 energy
+earns +1; restoring 5 earns −0.6; restoring 1 earns −0.92. No consumption earns
+0, including EAT on empty land or at full energy. Rewards become negative when
+less than half of a food unit is used. The minimum possible consumed-food gain
+is 1 under current rules, so the lowest reachable food reward is −0.92.
+Death remains −10 and end survival +5. Existing checkpoints retain their learned
+weights; Experiment 6 was trained with version 3, not this new objective.
+
+The signed-reward model is available as Experiment 7:
+
+```sh
+python -m visualization.sim3d --checkpoint experiment_7.pt
+```
+
+On 30 matched evaluation worlds, Experiment 7 wasted 16.8% of consumed food
+energy versus Experiment 5's 48.5%, with mean survival of 392 versus 383 ticks,
+but fewer final survivors (4.97 versus 5.70); these are single-training-seed results.
+
+## Project journal
+
+- [Project notes](project-journal/notes.md) — observations from building and watching the simulation.
+- [Experiment log](project-journal/experiment_log.md) — one-sentence summaries of experiment changes and results.
+
+These journal files are intended for the public repository; personal planning documents remain local.

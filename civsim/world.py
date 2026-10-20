@@ -37,7 +37,7 @@ class World:
         self.food = (food_rng.random(self.grid.shape) < 0.1) & (self.grid == 0)
         self.tick = 0
 
-    def step(self, actions: dict[int, Action]) -> dict[int, int]:
+    def step(self, actions: dict[int, Action]) -> dict[int, float]:
         """Apply simultaneous moves. Missing or invalid actions become STAY.
 
         Cells occupied at the start of the tick cannot be entered, even if
@@ -46,7 +46,7 @@ class World:
         EAT stays in place and consumes food there if energy is below 100.
         Eating restores 25 energy (capped at 100), then each living agent loses
         one energy, including when staying. Uneaten food remains for later ticks.
-        Return rewards by agent ID: death -10, eating +1, and a one-time +5
+        Return rewards by agent ID: death -10, a food-efficiency reward from -1 to +1, and a one-time +5
         for agents alive at the configured horizon. Ordinary survival earns 0.
         With horizon=None there is no end-survival bonus.
         Already-dead agents receive zero.
@@ -84,10 +84,9 @@ class World:
             destination = destinations.get(agent.id)
             if destination is not None and counts[destination] == 1:
                 agent.x, agent.y = destination
-            ate_food = False
+            gained = 0
             if (chosen_actions[agent.id] == Action.EAT and agent.energy < 100
                     and self.food[agent.y, agent.x]):
-                ate_food = True
                 self.food[agent.y, agent.x] = False
                 self.food_consumed += 1
                 gained = min(25, 100 - agent.energy)
@@ -99,7 +98,7 @@ class World:
                 agent.alive = False
             episode_end = (self.config.horizon is not None
                            and self.tick + 1 == self.config.horizon)
-            rewards[agent.id] = calculate_reward(True, agent.alive, ate_food, episode_end)
+            rewards[agent.id] = calculate_reward(True, agent.alive, gained, episode_end)
         self.tick += 1
         if self.tick % 20 == 0:
             # Empty means no food and no living agent on walkable land.

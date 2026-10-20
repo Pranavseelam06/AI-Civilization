@@ -15,7 +15,7 @@ class StepResult:
     # Includes every agent alive before this step, even one that just died.
     # Final observations are retained for training's end-of-episode handling.
     observations: dict[int, np.ndarray]
-    rewards: dict[int, int]
+    rewards: dict[int, float]
     terminated: dict[int, bool]
     truncated: dict[int, bool]
     done: bool

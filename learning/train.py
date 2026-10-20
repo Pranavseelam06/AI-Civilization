@@ -33,7 +33,7 @@ class Transition:
     action: int
     log_probability: float
     value: float
-    reward: int
+    reward: float
     next_observation: np.ndarray
     next_value: float
     terminated: bool
