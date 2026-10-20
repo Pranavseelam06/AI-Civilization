@@ -99,8 +99,8 @@ python -m learning.train --collect-only --ticks 128 --output runs/rollout.npz
 
 The implementation uses per-agent generalized advantage estimation, a clipped
 PPO policy objective, value fitting, entropy regularization, and gradient clipping.
-Deaths zero future-value estimates; time-limit endings bootstrap final observations
-without linking the next episode. This is parameter-shared PPO with local inputs,
+Deaths and finite episode endings have zero future value; ordinary rollout
+cutoffs bootstrap the next observation without linking separate episodes. This is parameter-shared PPO with local inputs,
 not a centralized-critic MAPPO system. See the [PPO paper](https://arxiv.org/abs/1707.06347).
 
 Saved checkpoints do not include the live world state for exact training resumption.
@@ -155,3 +155,29 @@ for meaningful before/after comparisons. Train a fresh checkpoint to use masking
 this change does not rewrite existing weights. Random/heuristic baselines retain
 their original behavior. Masking prevents invalid choices but does not itself
 teach food-seeking.
+
+### Controlled food-direction probes
+
+```sh
+python -m experiments.probe_food
+```
+
+Compares all saved checkpoints on synthetic, isolated interior observations with
+no food or one adjacent food item north/south/east/west, at 25, 50, and 100 energy.
+Console output shows the 50-energy cases; CSV saves all cases to `runs/food_probe_*`.
+It measures changes from each action's no-food probability, without sampling
+actions, changing weights, or advancing the world. These probes test local
+food responsiveness; they do not establish full-world or multi-step performance.
+
+### Current rewards
+
+- Each food unit eaten: **+1**.
+- Death: **−10**, once when it occurs.
+- Alive at the configured episode end: **+5**, once.
+- Ordinary living tick or already-dead agent: **0**.
+
+At the final tick, eating and survival can combine for +6. Death on that tick
+earns −10, not the survival bonus. With no horizon, there is no episode-end
+survival bonus. New training metadata records this as reward version 2.
+Experiments 1–3 used the earlier +5-per-living-tick objective and are retained
+as historical checkpoints. Experiment 4 uses the corrected objective.

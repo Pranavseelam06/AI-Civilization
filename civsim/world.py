@@ -44,7 +44,9 @@ class World:
         After movement, living agents on food have a seeded 50% chance to eat.
         Eating restores 25 energy (capped at 100), then each living agent loses
         one energy, including when staying. Uneaten food remains for later ticks.
-        Return rewards by agent ID: survival +5 or death -10, plus +1 for eating.
+        Return rewards by agent ID: death -10, eating +1, and a one-time +5
+        for agents alive at the configured horizon. Ordinary survival earns 0.
+        With horizon=None there is no end-survival bonus.
         Already-dead agents receive zero.
         """
         occupied = {(agent.x, agent.y) for agent in self.agents if agent.alive}
@@ -85,7 +87,9 @@ class World:
             agent.energy = max(0, agent.energy - 1)
             if agent.energy == 0:
                 agent.alive = False
-            rewards[agent.id] = calculate_reward(True, agent.alive, ate_food)
+            episode_end = (self.config.horizon is not None
+                           and self.tick + 1 == self.config.horizon)
+            rewards[agent.id] = calculate_reward(True, agent.alive, ate_food, episode_end)
         self.tick += 1
         if self.tick % 20 == 0:
             # Empty means no food and no living agent on walkable land.

@@ -17,7 +17,7 @@ def test_reset_and_step_observation_contract():
     assert not result.done and result.info['tick'] == 1
     assert set(result.observations) == set(result.rewards) == set(initial)
     assert set(result.terminated) == set(result.truncated) == set(initial)
-    assert set(result.rewards.values()) == {5}
+    assert set(result.rewards.values()) == {0}
     assert not any(result.terminated.values()) and not any(result.truncated.values())
 
 

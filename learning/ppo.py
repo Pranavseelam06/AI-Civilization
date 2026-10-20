@@ -27,8 +27,9 @@ class PPOConfig:
 def advantages_and_returns(rollout, gamma=0.99, gae_lambda=0.95):
     """GAE follows each agent separately; never join deaths, resets, or gaps.
 
-    Death zeroes bootstrap. A time limit bootstraps its final observation's
-    value, but stops the GAE chain. Rollout cutoffs also bootstrap next_value.
+    Death zeroes bootstrap. Time limits use the supplied next_value and stop
+    the GAE chain; the collector supplies zero for this finite survival task.
+    Ordinary rollout cutoffs bootstrap their next_value.
     """
     rows = rollout.transitions
     advantages = np.zeros(len(rows), dtype=np.float32)

@@ -17,6 +17,7 @@ import torch
 
 from civsim.environments import SimulationEnv
 from civsim.observations import movement_mask
+from civsim.rewards import REWARD_SPEC
 from learning.networks import ActorCritic
 from learning.ppo import PPOConfig, ppo_update
 
@@ -50,7 +51,8 @@ class RolloutCollector:
 
     Each row represents one living agent's action, not an entire world tick.
     Episode and agent IDs identify a trajectory. Deaths have next_value=0;
-    horizon truncations retain the final-state value for later bootstrapping.
+    The horizon ends this finite survival task, so it has no future-value
+    bootstrap even though the environment labels its time limit truncated.
     Never join a trajectory across resets, even when the agent ID is reused.
     A collection boundary alone is not a termination or truncation.
     """
@@ -97,7 +99,7 @@ class RolloutCollector:
                     log_probability=float(log_probs[index].item()),
                     value=float(values[index].item()), reward=result.rewards[agent_id],
                     next_observation=result.observations[agent_id].copy(),
-                    next_value=0.0 if terminal else float(next_values[index].item()),
+                    next_value=0.0 if terminal or result.truncated[agent_id] else float(next_values[index].item()),
                     terminated=terminal, truncated=result.truncated[agent_id],
                     action_mask=masks[index].copy(),
                 ))
@@ -117,7 +119,8 @@ def save_rollout(path: Path, rollout: Rollout, config, torch_seed: int) -> None:
     metadata = {'config': asdict(config), 'torch_seed': torch_seed,
                 'torch_version': str(torch.__version__), 'world_ticks': rollout.world_ticks,
                 'policy': 'ActorCritic rollout (weights not embedded)',
-                'action_masking': True, 'format_version': 2}
+                'action_masking': True, 'reward_spec': REWARD_SPEC,
+                'bootstrap_time_limits': False, 'format_version': 3}
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open('wb') as output:
         np.savez_compressed(output, **arrays, metadata=json.dumps(metadata))
@@ -166,6 +169,7 @@ def main():
                 'torch_version': str(torch.__version__), 'git_commit': commit,
                 'device': 'cpu', 'threads': args.threads, 'action_masking': True,
                 'mask_version': 1,
+                'reward_spec': REWARD_SPEC, 'bootstrap_time_limits': False,
                 'architecture': {'observation_size': 101, 'hidden_units': [128,128], 'action_count': 5}}
     (run_dir/'config.json').write_text(json.dumps(metadata,indent=2))
     started = time.perf_counter()

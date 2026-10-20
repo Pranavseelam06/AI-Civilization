@@ -36,7 +36,7 @@ def test_rollout_shapes_and_weights_unchanged(tmp_path):
     assert np.all(rollout.transitions[12].observation >= 0)
 
 
-def test_resets_keep_final_observation_and_value():
+def test_resets_keep_final_observation_without_bootstrapping_finite_task_end():
     model = ActorCritic()
     with torch.no_grad():
         model.critic.weight.zero_()
@@ -46,7 +46,7 @@ def test_resets_keep_final_observation_and_value():
     rows = collector.collect(2).transitions
     assert len(rows) == 24
     assert {r.seed for r in rows} == {123,124}
-    assert all(r.truncated and not r.terminated and r.next_value == 7 for r in rows)
+    assert all(r.truncated and not r.terminated and r.next_value == 0 for r in rows)
     assert all(r.tick == 1 for r in rows)
     assert rows[0].next_observation[-1] < 1  # Final state, not reset energy.
     assert rows[12].observation[-1] == 1

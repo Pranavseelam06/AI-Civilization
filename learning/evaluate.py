@@ -16,6 +16,7 @@ import torch
 from civsim.actions import Action
 from civsim.config import SimulationConfig
 from civsim.world import World
+from civsim.rewards import REWARD_SPEC
 from civsim.observations import nearest_food
 from experiments.diagnostics import movement_outcomes, near_corner
 from learning.baselines import random_policy, heuristic_policy
@@ -144,7 +145,7 @@ def main():
               f'near corners {mean(r["corner_tick_fraction"] for r in results):.1%}',flush=True)
     write_csv(output/'episodes.csv',rows)
     write_csv(output/'corner_probabilities.csv',samples)
-    metadata={'evaluation_seeds':seeds,'environment':asdict(config),'checkpoints':training,
+    metadata={'evaluation_seeds':seeds,'environment':asdict(config),'reward_spec':REWARD_SPEC,'checkpoints':training,
               'elapsed_seconds':time.perf_counter()-started,
               'seed_note':'Auto seeds exceed conservative recorded training bounds; explicit seeds require checking overlap. Missing checkpoint metadata prevents verifying held-out status.',
               'corner_definition':'Within two cells of both an X edge and a Y edge',
