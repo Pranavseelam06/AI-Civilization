@@ -7,6 +7,16 @@ from torch.distributions import Categorical
 from civsim.observations import OBSERVATION_SIZE
 
 
+def mask_action_logits(logits, action_mask=None):
+    """Exclude illegal actions consistently during sampling and PPO updates."""
+    if action_mask is None:
+        return logits
+    mask = torch.as_tensor(action_mask, dtype=torch.bool, device=logits.device)
+    if mask.shape != logits.shape or not mask.any(dim=-1).all():
+        raise ValueError('Action mask must match logits and allow at least one action')
+    return logits.masked_fill(~mask, torch.finfo(logits.dtype).min)
+
+
 class ActorCritic(nn.Module):
     def __init__(self, observation_size=OBSERVATION_SIZE, action_count=5):
         super().__init__()
@@ -25,12 +35,12 @@ class ActorCritic(nn.Module):
         features = self.features(observations)
         return self.actor(features), self.critic(features).squeeze(-1)
 
-    def act(self, observations):
+    def act(self, observations, action_mask=None):
         """Sample actions; retain log probabilities and values for training."""
         logits, values = self(observations)
-        distribution = Categorical(logits=logits)
+        distribution = Categorical(logits=mask_action_logits(logits, action_mask))
         actions = distribution.sample()
         return actions, distribution.log_prob(actions), values
 
 
-# TODO: Implement PPO training separately; this network starts untrained.
+# PPO updates live in learning/ppo.py; weights start untrained.

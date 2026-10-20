@@ -2,6 +2,7 @@
 
 import numpy as np
 from typing import TYPE_CHECKING
+from civsim.actions import Action, MOVEMENT_DELTAS
 
 from civsim.agents import AgentState
 
@@ -10,6 +11,20 @@ if TYPE_CHECKING:
 
 
 OBSERVATION_SIZE = 101  # Four 5 x 5 maps, followed by one energy value.
+
+
+def movement_mask(observation: np.ndarray) -> np.ndarray:
+    """Legal destinations from local observation only; STAY is always allowed.
+
+    Matches pre-step occupancy rules. Contested empty destinations cannot be
+    predicted from one observation and are still resolved by World.step().
+    """
+    patch = observation[:100].reshape(4, 5, 5)
+    mask = np.ones(len(Action), dtype=bool)
+    for action, (dx, dy) in MOVEMENT_DELTAS.items():
+        if action != Action.STAY:
+            mask[action] = not patch[1:4, 2+dy, 2+dx].any()
+    return mask
 
 
 def observe_agent(world: "World", agent: AgentState) -> np.ndarray:

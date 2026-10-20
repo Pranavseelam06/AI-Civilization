@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import numpy as np
 import torch
 from torch.distributions import Categorical
+from learning.networks import mask_action_logits
 
 
 @dataclass
@@ -62,6 +63,12 @@ def ppo_update(model, optimizer, rollout, config: PPOConfig):
     observations = torch.as_tensor(np.stack([r.observation for r in rows]), device=device)
     actions = torch.tensor([r.action for r in rows], dtype=torch.long, device=device)
     old_log_probs = torch.tensor([r.log_probability for r in rows], device=device)
+    masks = torch.as_tensor(np.stack([
+        r.action_mask if r.action_mask is not None else np.ones(model.actor.out_features, dtype=bool)
+        for r in rows
+    ]), dtype=torch.bool, device=device)
+    if not masks.gather(1, actions[:, None]).all():
+        raise ValueError('Rollout contains an action excluded by its recorded mask')
     advantages, returns = advantages_and_returns(rollout, config.gamma, config.gae_lambda)
     advantages, returns = advantages.to(device), returns.to(device)
     if len(rows) > 1:
@@ -73,7 +80,7 @@ def ppo_update(model, optimizer, rollout, config: PPOConfig):
         order = torch.randperm(len(rows), device=device)
         for batch in order.split(config.minibatch_size):
             logits, values = model(observations[batch])
-            distribution = Categorical(logits=logits)
+            distribution = Categorical(logits=mask_action_logits(logits, masks[batch]))
             log_probs = distribution.log_prob(actions[batch])
             policy_loss = clipped_policy_loss(log_probs, old_log_probs[batch], advantages[batch], config.clip_ratio)
             value_loss = 0.5 * (values - returns[batch]).square().mean()

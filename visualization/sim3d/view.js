@@ -136,7 +136,7 @@ export async function start() {
     try {
       apply(await api(path,data),snap);
       $('status').className = '';
-      $('status').textContent = state.finished ? 'Episode finished. Reset to start another.' : `Live ${state.policy}${state.checkpoint ? ' · ' + state.checkpoint : ''}`;
+      $('status').textContent = state.finished ? 'Episode finished. Reset to start another.' : `Live ${state.policy}${state.checkpoint ? ' · ' + state.checkpoint + (state.action_masking ? ' · masked' : ' · legacy unmasked') : ''}`;
     } catch (error) {
       playing = false;
       $('status').className = 'error';
@@ -171,7 +171,7 @@ export async function start() {
   $('policy').value=state.policy;
   if (state.checkpoint) $('checkpoint').value=state.checkpoint;
   updateCheckpointControl();
-  $('status').textContent=`Ready: ${state.policy}${state.checkpoint ? ' · ' + state.checkpoint : ''}. Press Start.`;
+  $('status').textContent=`Ready: ${state.policy}${state.checkpoint ? ' · ' + state.checkpoint + (state.action_masking ? ' · masked' : ' · legacy unmasked') : ''}. Press Start.`;
   let previousTime=performance.now();
   renderer.setAnimationLoop(now=>{
     const dt=Math.min((now-previousTime)/1000,0.1);previousTime=now;

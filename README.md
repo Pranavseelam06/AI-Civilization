@@ -119,3 +119,39 @@ from the local `checkpoints/` folder: choose Trained PPO, select a checkpoint,
 and Reset world. Refresh the page to discover files saved since it opened.
 Policy actions are sampled from the loaded network with seed-controlled randomness.
 Inference does not update model weights. The Pygame viewer retains its heuristic.
+
+### Evaluate and diagnose a trained policy
+
+```sh
+python -m learning.evaluate --checkpoints latest --episodes 10
+python -m learning.evaluate --checkpoints all --episodes 10
+```
+
+This compares checkpoints with random and heuristic baselines using matched seeds.
+By default the evaluation range starts at 10000 or beyond a conservative bound
+on recorded training seeds, whichever is greater. For checkpoints missing training
+metadata, held-out status cannot be verified. Explicit `--start-seed` values need
+to be checked against training seeds.
+
+Each run saves `episodes.csv`, `metadata.json`, and (when corners are visited)
+`corner_probabilities.csv` under a unique `runs/evaluation_*` directory.
+Metrics include horizon-capped survival, food eaten, total reward, rejected move
+reasons, and time near corners (within two cells of both edges). Intentional STAY
+is reported separately and is not a rejected move. Corner traces contain up to
+20 actual observations per episode, not an exhaustive or unbiased probability
+summary. Diagnostic inspection does not change weights, sampling RNG, or rules.
+
+### Legal-action masking
+
+New PPO training runs mask moves outside the map, into obstacles, or into living
+agents' pre-step cells. The mask comes only from the local observation. STAY
+remains available; simultaneous contention for an empty cell still uses the
+world's existing conflict rules. Rollouts save each mask so PPO computes its
+probabilities using the same allowed actions as collection.
+
+New checkpoints declare `action_masking: true`, and evaluation and the 3D viewer
+apply it automatically. Older checkpoints retain their original unmasked behavior
+for meaningful before/after comparisons. Train a fresh checkpoint to use masking;
+this change does not rewrite existing weights. Random/heuristic baselines retain
+their original behavior. Masking prevents invalid choices but does not itself
+teach food-seeking.

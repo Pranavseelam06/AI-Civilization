@@ -16,6 +16,7 @@ import numpy as np
 import torch
 
 from civsim.environments import SimulationEnv
+from civsim.observations import movement_mask
 from learning.networks import ActorCritic
 from learning.ppo import PPOConfig, ppo_update
 
@@ -35,6 +36,7 @@ class Transition:
     next_value: float
     terminated: bool
     truncated: bool
+    action_mask: np.ndarray | None = None
 
 
 @dataclass
@@ -76,7 +78,8 @@ class RolloutCollector:
                 np.stack([self.observations[i] for i in ids]),
                 dtype=torch.float32, device=device,
             )
-            actions, log_probs, values = self.model.act(inputs)
+            masks = np.stack([movement_mask(self.observations[i]) for i in ids])
+            actions, log_probs, values = self.model.act(inputs, masks)
             action_list = actions.cpu().tolist()
             result = self.env.step(dict(zip(ids, action_list)))
             final_inputs = torch.as_tensor(
@@ -96,6 +99,7 @@ class RolloutCollector:
                     next_observation=result.observations[agent_id].copy(),
                     next_value=0.0 if terminal else float(next_values[index].item()),
                     terminated=terminal, truncated=result.truncated[agent_id],
+                    action_mask=masks[index].copy(),
                 ))
             self.observations = {
                 i: result.observations[i] for i in self.env.agents
@@ -112,7 +116,8 @@ def save_rollout(path: Path, rollout: Rollout, config, torch_seed: int) -> None:
     }
     metadata = {'config': asdict(config), 'torch_seed': torch_seed,
                 'torch_version': str(torch.__version__), 'world_ticks': rollout.world_ticks,
-                'policy': 'ActorCritic rollout (weights not embedded)', 'format_version': 1}
+                'policy': 'ActorCritic rollout (weights not embedded)',
+                'action_masking': True, 'format_version': 2}
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open('wb') as output:
         np.savez_compressed(output, **arrays, metadata=json.dumps(metadata))
@@ -159,7 +164,8 @@ def main():
     metadata = {'seed': args.seed, 'environment': asdict(env.world.config),
                 'ppo': asdict(ppo_config), 'updates': args.updates, 'ticks_per_update': args.ticks,
                 'torch_version': str(torch.__version__), 'git_commit': commit,
-                'device': 'cpu', 'threads': args.threads,
+                'device': 'cpu', 'threads': args.threads, 'action_masking': True,
+                'mask_version': 1,
                 'architecture': {'observation_size': 101, 'hidden_units': [128,128], 'action_count': 5}}
     (run_dir/'config.json').write_text(json.dumps(metadata,indent=2))
     started = time.perf_counter()

@@ -60,6 +60,7 @@ class SimulationSession:
         alive = sum(a.alive for a in w.agents)
         return {'config': asdict(w.config), 'seed': self.seed, 'policy': self.policy,
                 'checkpoint': self.checkpoint,
+                'action_masking': bool(self.learned and self.learned.action_masking),
                 'tick': w.tick, 'agents': [asdict(a) for a in w.agents],
                 'food': np.argwhere(w.food).tolist(), 'food_consumed': w.food_consumed,
                 'finished': alive == 0 or (w.config.horizon is not None and w.tick >= w.config.horizon)}
