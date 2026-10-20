@@ -12,6 +12,7 @@ dependencies = ["numpy", "PyYAML"]
 [project.optional-dependencies]
 dev = ["pytest"]
 viewer = ["pygame"]
+learning = ["torch"]
 
 [tool.setuptools.packages.find]
 include = ["civsim*", "learning*", "experiments*", "visualization*"]

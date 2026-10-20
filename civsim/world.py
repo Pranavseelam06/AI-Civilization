@@ -6,6 +6,7 @@ import numpy as np
 
 from civsim.actions import Action, MOVEMENT_DELTAS
 from civsim.config import SimulationConfig
+from civsim.rewards import calculate_reward
 from civsim.terrain import create_grid, spawn_agents
 
 
@@ -34,7 +35,7 @@ class World:
         self.food = (food_rng.random(self.grid.shape) < 0.1) & (self.grid == 0)
         self.tick = 0
 
-    def step(self, actions: dict[int, Action]) -> None:
+    def step(self, actions: dict[int, Action]) -> dict[int, int]:
         """Apply simultaneous moves. Missing or invalid actions become STAY.
 
         Cells occupied at the start of the tick cannot be entered, even if
@@ -43,6 +44,8 @@ class World:
         After movement, living agents on food have a seeded 50% chance to eat.
         Eating restores 25 energy (capped at 100), then each living agent loses
         one energy, including when staying. Uneaten food remains for later ticks.
+        Return rewards by agent ID: survival +5 or death -10, plus +1 for eating.
+        Already-dead agents receive zero.
         """
         occupied = {(agent.x, agent.y) for agent in self.agents if agent.alive}
         destinations = {}
@@ -66,19 +69,23 @@ class World:
                 destinations[agent.id] = (x, y)
 
         counts = Counter(destinations.values())
+        rewards = {agent.id: 0 for agent in self.agents}
         for agent in self.agents:
             if not agent.alive:
                 continue
             destination = destinations.get(agent.id)
             if destination is not None and counts[destination] == 1:
                 agent.x, agent.y = destination
+            ate_food = False
             if self.food[agent.y, agent.x] and self.eating_rng.random() < 0.5:
+                ate_food = True
                 self.food[agent.y, agent.x] = False
                 self.food_consumed += 1
                 agent.energy = min(100, agent.energy + 25)
             agent.energy = max(0, agent.energy - 1)
             if agent.energy == 0:
                 agent.alive = False
+            rewards[agent.id] = calculate_reward(True, agent.alive, ate_food)
         self.tick += 1
         if self.tick % 20 == 0:
             # Empty means no food and no living agent on walkable land.
@@ -88,6 +95,7 @@ class World:
                     available[agent.y, agent.x] = False
             grows = self.regrowth_rng.random(self.grid.shape) < 0.01
             self.food |= available & grows
+        return rewards
 
 
 # TODO: Replace the temporary eating coin flip with policy decisions later.
