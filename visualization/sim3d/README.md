@@ -27,3 +27,13 @@ No paid service or API key is needed. The browser currently downloads pinned
 Three.js 0.180.0 from jsDelivr, so initial loading requires internet. Models and
 simulation are served locally. The original Pygame viewers and recording features
 remain available; this 3D viewer does not yet record runs.
+
+## Trained PPO
+
+Install the learning extra (`python -m pip install -e '.[learning]'`).
+Run `python -m visualization.sim3d --checkpoint latest` to start with the newest
+`.pt` file in `checkpoints/`, or supply a specific checkpoint filename.
+Alternatively choose Trained PPO and a checkpoint in the UI, then Reset world.
+Refresh the page to update the checkpoint list after training. Baseline policies
+still work without PyTorch installed. All inference runs locally on CPU without
+gradients or optimizer updates. Use one browser tab per simulation server.

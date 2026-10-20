@@ -8,7 +8,7 @@ The project starts with a small ecosystem: agents observe their surroundings, mo
 
 ## Project status
 
-Early development: a seeded grid simulator now supports movement, energy, death, food consumption, and regeneration. Random and heuristic policies, baseline evaluation, a live viewer, and saved replay playback are implemented. Behavioral tests cover these features; model training and learned communication remain future work.
+Early development: a seeded grid simulator now supports movement, energy, death, food consumption, and regeneration. Random and heuristic policies, baseline evaluation, a live viewer, and saved replay playback are implemented. Behavioral tests cover these features; a shared-policy PPO training loop is available, while learned communication remains future work. Training effectiveness still requires held-out evaluation.
 
 ## Research goals
 
@@ -76,3 +76,46 @@ The browser downloads the free Three.js rendering library on loading, so an
 internet connection is currently required. No API key or paid service is needed.
 The static single-model preview remains available with
 `python -m visualization.model_preview` on port 8000.
+
+## Local PPO training
+
+Install learning and test dependencies, then train headlessly:
+
+```sh
+python -m pip install -e '.[dev,learning]'
+python -m learning.train --updates 20 --ticks 128
+```
+
+Each update collects fresh experience from one world before updating the shared
+actor-critic network. Runs save configuration and loss/reward metrics to a unique
+`runs/ppo_*` directory and learned weights plus optimizer state to `checkpoints/`.
+CPU execution defaults to one thread. These are local operations without API fees.
+
+To collect experience without updating weights:
+
+```sh
+python -m learning.train --collect-only --ticks 128 --output runs/rollout.npz
+```
+
+The implementation uses per-agent generalized advantage estimation, a clipped
+PPO policy objective, value fitting, entropy regularization, and gradient clipping.
+Deaths zero future-value estimates; time-limit endings bootstrap final observations
+without linking the next episode. This is parameter-shared PPO with local inputs,
+not a centralized-critic MAPPO system. See the [PPO paper](https://arxiv.org/abs/1707.06347).
+
+Saved checkpoints do not include the live world state for exact training resumption.
+The 3D viewer supports trained checkpoints as well as random/heuristic policies. A successful training run only verifies execution,
+not improvement: compare trained checkpoints against baselines on held-out seeds.
+
+### Watch a trained policy
+
+```sh
+python -m visualization.sim3d --checkpoint latest
+```
+
+Open http://127.0.0.1:8001 and press Start. To load a specific checkpoint, pass
+`--checkpoint checkpoints/YOUR_FILENAME.pt`. The viewer also lists checkpoints
+from the local `checkpoints/` folder: choose Trained PPO, select a checkpoint,
+and Reset world. Refresh the page to discover files saved since it opened.
+Policy actions are sampled from the loaded network with seed-controlled randomness.
+Inference does not update model weights. The Pygame viewer retains its heuristic.

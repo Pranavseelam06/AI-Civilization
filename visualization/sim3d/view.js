@@ -13,6 +13,20 @@ export async function start() {
     return body;
   }
   let state = await api('/api/state');
+  const catalog = await api('/api/checkpoints');
+  $('checkpoint').replaceChildren(...catalog.checkpoints.map(name => {
+    const option = document.createElement('option');
+    option.value = option.textContent = name;
+    return option;
+  }));
+  if (!catalog.checkpoints.length) {
+    const option = document.createElement('option');
+    option.textContent = 'No checkpoints — train a model first';option.value = '';
+    $('checkpoint').appendChild(option);
+    document.querySelector('#policy option[value="ppo"]').disabled = true;
+  }
+  function updateCheckpointControl() {$('checkpoint').disabled = $('policy').value !== 'ppo';}
+  $('policy').onchange = updateCheckpointControl;
   const {width, height} = state.config;
   const renderer = new THREE.WebGLRenderer({antialias: true});
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -122,7 +136,7 @@ export async function start() {
     try {
       apply(await api(path,data),snap);
       $('status').className = '';
-      $('status').textContent = state.finished ? 'Episode finished. Reset to start another.' : 'Live Python simulation · 3D display';
+      $('status').textContent = state.finished ? 'Episode finished. Reset to start another.' : `Live ${state.policy}${state.checkpoint ? ' · ' + state.checkpoint : ''}`;
     } catch (error) {
       playing = false;
       $('status').className = 'error';
@@ -139,7 +153,7 @@ export async function start() {
       return;
     }
     playing=false;
-    mutate('/api/reset',{seed,policy:$('policy').value},true);
+    mutate('/api/reset',{seed,policy:$('policy').value,checkpoint:$('checkpoint').value},true);
   };
   $('speed').oninput = () => {$('rate').textContent=$('speed').value;};
   $('camera').disabled=false;
@@ -155,7 +169,9 @@ export async function start() {
   apply(state,true);
   $('seed').value=state.seed;
   $('policy').value=state.policy;
-  $('status').textContent='Ready. Press Start to run the simulation.';
+  if (state.checkpoint) $('checkpoint').value=state.checkpoint;
+  updateCheckpointControl();
+  $('status').textContent=`Ready: ${state.policy}${state.checkpoint ? ' · ' + state.checkpoint : ''}. Press Start.`;
   let previousTime=performance.now();
   renderer.setAnimationLoop(now=>{
     const dt=Math.min((now-previousTime)/1000,0.1);previousTime=now;
