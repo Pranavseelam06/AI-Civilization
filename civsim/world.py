@@ -11,7 +11,8 @@ from civsim.terrain import create_grid, spawn_agents
 
 
 class World:
-    def __init__(self, config: SimulationConfig):
+    def __init__(self, config: SimulationConfig, *, automatic_eating=False):
+        self.automatic_eating = automatic_eating
         self.config = config
         self.grid = create_grid(config.width, config.height)
         self.food = np.zeros_like(self.grid, dtype=bool)
@@ -28,8 +29,9 @@ class World:
         self.grid = create_grid(self.config.width, self.config.height)
         self.agents = spawn_agents(self.grid, self.config.num_agents, seed)
         # Reserve the former eating stream so placement/regrowth seeds stay stable.
-        food_seed, _, regrowth_seed = np.random.SeedSequence(seed).spawn(3)
+        food_seed, eating_seed, regrowth_seed = np.random.SeedSequence(seed).spawn(3)
         food_rng = np.random.default_rng(food_seed)
+        self.eating_rng = np.random.default_rng(eating_seed)
         self.regrowth_rng = np.random.default_rng(regrowth_seed)
         self.food_consumed = 0
         self.food_energy_gained = 0
@@ -95,8 +97,10 @@ class World:
             if (energy_before_eating < 30 and food_available_before_action[agent.id]
                     and chosen_actions[agent.id] != Action.EAT):
                 self.missed_meals += 1  # Diagnostic only; never a reward penalty.
-            if (chosen_actions[agent.id] == Action.EAT and agent.energy < 100
-                    and self.food[agent.y, agent.x]):
+            should_eat = (self.eating_rng.random() < 0.5 if self.automatic_eating
+                          and self.food[agent.y, agent.x] else False)
+            if (self.food[agent.y, agent.x] and (should_eat if self.automatic_eating
+                    else chosen_actions[agent.id] == Action.EAT and agent.energy < 100)):
                 self.food[agent.y, agent.x] = False
                 self.food_consumed += 1
                 gained = min(25, 100 - agent.energy)

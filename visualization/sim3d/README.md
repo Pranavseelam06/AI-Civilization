@@ -37,3 +37,10 @@ Alternatively choose Trained PPO and a checkpoint in the UI, then Reset world.
 Refresh the page to update the checkpoint list after training. Baseline policies
 still work without PyTorch installed. All inference runs locally on CPU without
 gradients or optimizer updates. Use one browser tab per simulation server.
+
+The experiment menu contains one entry for each Experiment 1–13. Experiments
+12 and 13 use their validation-selected best checkpoints. Search by number
+(e.g. `4`) above the controls and press Enter to load that experiment, then
+press Start. Clear the search to see the full list. Experiments 1–4 load their
+five-action networks with the original seeded 50% automatic-eating behavior;
+later experiments use explicit EAT. This is inference only; no weights change.

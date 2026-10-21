@@ -30,7 +30,7 @@ def experiment_catalog():
         candidates = ([CHECKPOINTS / f'{stem}_best.pt'] if number >= 12 else [])
         candidates += [CHECKPOINTS / f'{stem}.pt', CHECKPOINTS / 'archive' / f'{stem}.pt']
         path = next((p for p in candidates if p.is_file()), None)
-        available = path is not None and compatible_checkpoint(path)
+        available = path is not None and compatible_checkpoint(path, allow_legacy=True)
         reason = '' if available else ('older automatic-eating rules' if path else 'checkpoint missing')
         entries.append({'name': str(path.relative_to(CHECKPOINTS)) if path else f'{stem}.pt',
                         'label': f'Experiment {number}' + (f' — unavailable: {reason}' if reason else ''),
@@ -48,7 +48,7 @@ def checkpoint_names():
     names = [entry['name'] for entry in entries if entry['available']]
     for p in sorted(CHECKPOINTS.glob('*.pt'), key=lambda p: p.stat().st_mtime, reverse=True):
         if (p.is_file() and p.resolve().parent == CHECKPOINTS.resolve()
-                and p.name not in names and compatible_checkpoint(p)):
+                and p.name not in names and compatible_checkpoint(p, allow_legacy=True)):
             names.append(p.name)
     return names
 
@@ -71,13 +71,14 @@ class SimulationSession:
                 raise ValueError('Choose an existing checkpoint from checkpoints/.')
             try:
                 from learning.inference import LearnedPolicy
-                learned = LearnedPolicy(CHECKPOINTS / checkpoint, self.world.config, seed)
+                learned = LearnedPolicy(CHECKPOINTS / checkpoint, self.world.config, seed, allow_legacy=True)
             except (ImportError, OSError, RuntimeError, ValueError, KeyError, TypeError, EOFError, pickle.UnpicklingError) as exc:
                 raise ValueError(f'Cannot load PPO checkpoint: {exc}') from exc
         self.seed, self.policy = seed, policy
         self.learned = learned
         self.checkpoint = checkpoint if policy == 'ppo' else None
         self.rng = np.random.default_rng(seed + 10000)
+        self.world = World(self.world.config, automatic_eating=bool(learned and learned.automatic_eating))
         self.world.reset(seed)
         return self.state()
 
@@ -86,6 +87,7 @@ class SimulationSession:
         alive = sum(a.alive for a in w.agents)
         return {'config': asdict(w.config), 'seed': self.seed, 'policy': self.policy,
                 'checkpoint': self.checkpoint,
+                'eating_mode': 'automatic' if w.automatic_eating else 'explicit EAT',
                 'action_masking': bool(self.learned and self.learned.action_masking),
                 'tick': w.tick, 'agents': [asdict(a) for a in w.agents],
                 'food': np.argwhere(w.food).tolist(), 'food_consumed': w.food_consumed,

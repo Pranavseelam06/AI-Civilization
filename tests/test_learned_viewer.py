@@ -71,12 +71,20 @@ def test_switching_back_to_heuristic_discards_learned_policy(checkpoints):
     assert session.learned is None and state['checkpoint'] is None
 
 
-def test_old_five_action_checkpoints_are_preserved_but_not_selected(checkpoints):
+def test_old_five_action_checkpoints_use_legacy_viewer_mode(checkpoints):
     from learning.inference import LearnedPolicy
     legacy=ActorCritic(action_count=5)
     path=checkpoints/'old.pt'
     torch.save({'model_state_dict':legacy.state_dict()},path)
-    assert path.exists() and 'old.pt' not in sim3d.checkpoint_names()
+    assert path.exists() and 'old.pt' in sim3d.checkpoint_names()
+    session = sim3d.SimulationSession()
+    assert session.reset(123, 'ppo', 'old.pt')['eating_mode'] == 'automatic'
+    first = [session.step() for _ in range(5)]
+    session.reset(123, 'ppo', 'old.pt')
+    assert first == [session.step() for _ in range(5)]
+    assert session.learned.model.actor.out_features == 5
+    session.reset(123, 'heuristic')
+    assert not session.world.automatic_eating
     with pytest.raises(ValueError,match='old five-action'):
         LearnedPolicy(path,SimulationConfig(),123)
 
@@ -97,3 +105,14 @@ def test_experiment_catalog_hides_extra_runs_and_uses_best_and_archive(checkpoin
     assert not entries[0]['available']
     session = sim3d.SimulationSession()
     assert session.reset(123, 'ppo', entries[8]['name'])['checkpoint'] == entries[8]['name']
+
+
+def test_legacy_automatic_eating_can_consume_at_full_energy():
+    world = World(SimulationConfig(width=1, height=1, num_agents=1), automatic_eating=True)
+    world.reset(123)
+    world.food[:] = True
+    world.eating_rng = np.random.default_rng(2)  # First draw < 0.5.
+    world.step({0: Action.STAY})
+    assert world.food_consumed == 1
+    assert world.food_energy_wasted == 25
+    assert world.agents[0].energy == 99

@@ -14,13 +14,28 @@ export async function start() {
   }
   let state = await api('/api/state');
   const catalog = await api('/api/checkpoints');
-  $('checkpoint').replaceChildren(...catalog.checkpoints.map(entry => {
-    const option = document.createElement('option');
-    option.value = entry.name;
-    option.textContent = entry.label;
-    option.disabled = !entry.available;
-    return option;
-  }));
+  function filterExperiments() {
+    const previous = $('checkpoint').value;
+    const query = $('experiment-search').value.trim().toLowerCase();
+    const matches = catalog.checkpoints.filter(entry => /^\d+$/.test(query)
+      ? entry.label.split(' ')[1] === query
+      : entry.label.toLowerCase().includes(query));
+    $('checkpoint').replaceChildren(...matches.map(entry => {
+      const option = document.createElement('option');
+      option.value = entry.name; option.textContent = entry.label;
+      option.disabled = !entry.available;
+      return option;
+    }));
+    if (matches.some(entry => entry.name === previous)) $('checkpoint').value = previous;
+    $('search-result').textContent = matches.length ? '' : 'No matching experiments.';
+    if (query && matches.some(entry => entry.available)) $('policy').value = 'ppo';
+    updateCheckpointControl();
+  }
+  $('experiment-search').oninput = filterExperiments;
+  $('experiment-search').onkeydown = event => {
+    if (event.key === 'Enter' && $('checkpoint').value) {event.preventDefault(); $('reset').click();}
+  };
+  filterExperiments();
   if (!catalog.checkpoints.some(entry => entry.available)) {
     const option = document.createElement('option');
     option.textContent = 'No checkpoints — train a model first';option.value = '';
@@ -138,7 +153,7 @@ export async function start() {
     try {
       apply(await api(path,data),snap);
       $('status').className = '';
-      $('status').textContent = state.finished ? 'Episode finished. Reset to start another.' : `Live ${state.policy}${state.checkpoint ? ' · ' + state.checkpoint + (state.action_masking ? ' · masked' : ' · legacy unmasked') : ''}`;
+      $('status').textContent = state.finished ? 'Episode finished. Reset to start another.' : `Live ${state.policy}${state.checkpoint ? ' · ' + state.checkpoint + ' · ' + state.eating_mode + (state.action_masking ? ' · masked' : ' · legacy unmasked') : ''}`;
     } catch (error) {
       playing = false;
       $('status').className = 'error';
@@ -173,7 +188,7 @@ export async function start() {
   $('policy').value=state.policy;
   if (state.checkpoint) $('checkpoint').value=state.checkpoint;
   updateCheckpointControl();
-  $('status').textContent=`Ready: ${state.policy}${state.checkpoint ? ' · ' + state.checkpoint + (state.action_masking ? ' · masked' : ' · legacy unmasked') : ''}. Press Start.`;
+  $('status').textContent=`Ready: ${state.policy}${state.checkpoint ? ' · ' + state.checkpoint + ' · ' + state.eating_mode + (state.action_masking ? ' · masked' : ' · legacy unmasked') : ''}. Press Start.`;
   let previousTime=performance.now();
   renderer.setAnimationLoop(now=>{
     const dt=Math.min((now-previousTime)/1000,0.1);previousTime=now;

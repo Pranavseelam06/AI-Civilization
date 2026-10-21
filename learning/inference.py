@@ -9,21 +9,23 @@ from learning.networks import ActorCritic, mask_action_logits
 from civsim.actions import Action
 
 
-def compatible_checkpoint(path):
+def compatible_checkpoint(path, *, allow_legacy=False):
     """Exclude obsolete five-action checkpoints from automatic selection."""
     try:
         saved = torch.load(path, map_location="cpu", weights_only=True)
-        return saved["model_state_dict"]["actor.weight"].shape[0] == len(Action)
+        return saved["model_state_dict"]["actor.weight"].shape[0] in ((5, len(Action)) if allow_legacy else (len(Action),))
     except (OSError, ValueError, KeyError, TypeError, RuntimeError, EOFError, pickle.UnpicklingError):
         return False
 
 
 class LearnedPolicy:
-    def __init__(self, path, config, seed):
+    def __init__(self, path, config, seed, *, allow_legacy=False):
         saved = torch.load(path, map_location='cpu', weights_only=True)
         if not isinstance(saved, dict) or 'model_state_dict' not in saved:
             raise ValueError('Checkpoint must contain model_state_dict')
-        if saved['model_state_dict']['actor.weight'].shape[0] != len(Action):
+        self.action_count = saved['model_state_dict']['actor.weight'].shape[0]
+        self.automatic_eating = self.action_count == 5
+        if self.action_count != len(Action) and not (allow_legacy and self.automatic_eating):
             raise ValueError('This checkpoint uses the old five-action automatic-eating rules. '
                              'Train a new six-action checkpoint with explicit EAT.')
         environment = saved.get('metadata', {}).get('environment', {})
@@ -35,7 +37,7 @@ class LearnedPolicy:
                 raise ValueError(f'Checkpoint {key} does not match viewer settings')
         # Model initialization must not alter another session's action randomness.
         with torch.random.fork_rng():
-            self.model = ActorCritic()
+            self.model = ActorCritic(action_count=self.action_count)
         self.model.load_state_dict(saved['model_state_dict'])
         if not all(torch.isfinite(p).all() for p in self.model.parameters()):
             raise ValueError('Checkpoint contains non-finite weights')
@@ -51,7 +53,7 @@ class LearnedPolicy:
         inputs = torch.from_numpy(np.stack([observe_agent(world,a) for a in agents]))
         logits, _ = self.model(inputs)
         if self.action_masking:
-            masks = np.stack([movement_mask(row) for row in inputs.numpy()])
+            masks = np.stack([movement_mask(row)[:self.action_count] for row in inputs.numpy()])
             logits = mask_action_logits(logits, masks)
         return {a.id: row for a,row in zip(agents,logits.softmax(-1).tolist())}
 
@@ -63,7 +65,7 @@ class LearnedPolicy:
         observations = torch.from_numpy(np.stack([observe_agent(world,a) for a in agents]))
         logits, _ = self.model(observations)
         if self.action_masking:
-            masks = np.stack([movement_mask(row) for row in observations.numpy()])
+            masks = np.stack([movement_mask(row)[:self.action_count] for row in observations.numpy()])
             logits = mask_action_logits(logits, masks)
         probabilities = logits.softmax(dim=-1)
         sampled = torch.multinomial(probabilities, 1, generator=self.generator).squeeze(-1)
