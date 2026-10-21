@@ -21,15 +21,36 @@ STATIC = Path(__file__).with_suffix('')
 CHECKPOINTS = STATIC.parents[1] / 'checkpoints'
 
 
+def experiment_catalog():
+    """One entry per experiment; retain training artifacts outside the menu."""
+    from learning.inference import compatible_checkpoint
+    entries = []
+    for number in range(1, 14):
+        stem = f'experiment_{number}'
+        candidates = ([CHECKPOINTS / f'{stem}_best.pt'] if number >= 12 else [])
+        candidates += [CHECKPOINTS / f'{stem}.pt', CHECKPOINTS / 'archive' / f'{stem}.pt']
+        path = next((p for p in candidates if p.is_file()), None)
+        available = path is not None and compatible_checkpoint(path)
+        reason = '' if available else ('older automatic-eating rules' if path else 'checkpoint missing')
+        entries.append({'name': str(path.relative_to(CHECKPOINTS)) if path else f'{stem}.pt',
+                        'label': f'Experiment {number}' + (f' — unavailable: {reason}' if reason else ''),
+                        'available': available})
+    return entries
+
+
 def checkpoint_names():
     try:
+        entries = experiment_catalog()
         from learning.inference import compatible_checkpoint
     except ImportError:
         return []
-    return [p.name for p in sorted(CHECKPOINTS.glob('*.pt'),
-                                  key=lambda p: p.stat().st_mtime, reverse=True)
-            if p.is_file() and p.resolve().parent == CHECKPOINTS.resolve()
-            and compatible_checkpoint(p)]
+    # Preserve direct loading for tools/tests, while the browser uses the curated catalog.
+    names = [entry['name'] for entry in entries if entry['available']]
+    for p in sorted(CHECKPOINTS.glob('*.pt'), key=lambda p: p.stat().st_mtime, reverse=True):
+        if (p.is_file() and p.resolve().parent == CHECKPOINTS.resolve()
+                and p.name not in names and compatible_checkpoint(p)):
+            names.append(p.name)
+    return names
 
 
 class SimulationSession:
@@ -98,7 +119,7 @@ class SimulationHandler(PreviewHandler):
     def do_GET(self):
         path = urlsplit(self.path).path
         if path == '/api/checkpoints':
-            self.send_json({'checkpoints': checkpoint_names()})
+            self.send_json({'checkpoints': experiment_catalog()})
         elif path == '/api/state':
             with self.server.session_lock:
                 self.send_json(self.server.session.state())

@@ -381,3 +381,27 @@ See the [full stage-by-stage report](project-journal/experiment_12.md).
 ```sh
 python -m visualization.sim3d --checkpoint experiment_12_best.pt
 ```
+
+### Independent-seed replication (Experiment 13)
+
+The same Experiment 8 setup is repeated with training seeds 1001, 10001,
+and 100001, each for 1,000 updates with snapshots every 100. Each run selects
+a checkpoint using validation seeds 350000–350009; the frozen selections are
+then tested on separate seeds 400000–400029. No reward or PPO tuning is used.
+
+`experiments.select_stages` provides reusable selection from evaluation CSVs,
+checks matched distinct validation seeds, and records the selected paths and
+criterion before final testing. It refuses to overwrite existing checkpoint
+copies. Checkpoints are ranked by mean final survivors, then lower food waste,
+longer survival, and earlier update.
+
+All three new training seeds repeated the improvement over the original
+200-update Experiment 8: selected models averaged 11.07, 10.60, and 9.93 final
+survivors out of 12 on 30 independent test worlds, versus 4.00 for Experiment 8,
+with at most 0.006% food-energy waste. The selected original Experiment 12
+checkpoint averaged 11.57 on the same worlds.
+See the [replication report](project-journal/experiment_13.md).
+
+```sh
+python -m visualization.sim3d --checkpoint experiment_13_best.pt
+```

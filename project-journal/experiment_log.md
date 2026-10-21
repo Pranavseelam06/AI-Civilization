@@ -20,6 +20,8 @@ Each entry is one sentence; results are exploratory and evaluation seeds differ 
 
 - **Experiment 12 — October 20, 2026:** Extending Experiment 8’s unchanged training to 1,000 updates with checkpoints every 100 selected the 700-update stage on validation worlds, which averaged 11.23 survivors versus Experiment 8’s 4.50 with no observed food-energy waste on 30 separate test worlds.
 
+- **Experiment 13 — October 20, 2026:** Repeating the unchanged longer-training setup with three new training seeds produced validation-selected models averaging 11.07, 10.60, and 9.93 survivors versus Experiment 8’s 4.00 on 30 separate matched test worlds, with food-energy waste no greater than 0.006%.
+
 ## Additional diagnostic experiments
 
 - **Food-direction probe — October 20, 2026:** Controlled food relocation exposed weak food responsiveness in Experiment 3 and strong direction-specific responses in Experiment 4.

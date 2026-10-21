@@ -14,12 +14,14 @@ export async function start() {
   }
   let state = await api('/api/state');
   const catalog = await api('/api/checkpoints');
-  $('checkpoint').replaceChildren(...catalog.checkpoints.map(name => {
+  $('checkpoint').replaceChildren(...catalog.checkpoints.map(entry => {
     const option = document.createElement('option');
-    option.value = option.textContent = name;
+    option.value = entry.name;
+    option.textContent = entry.label;
+    option.disabled = !entry.available;
     return option;
   }));
-  if (!catalog.checkpoints.length) {
+  if (!catalog.checkpoints.some(entry => entry.available)) {
     const option = document.createElement('option');
     option.textContent = 'No checkpoints — train a model first';option.value = '';
     $('checkpoint').appendChild(option);

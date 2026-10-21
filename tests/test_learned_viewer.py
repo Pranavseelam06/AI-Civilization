@@ -79,3 +79,21 @@ def test_old_five_action_checkpoints_are_preserved_but_not_selected(checkpoints)
     assert path.exists() and 'old.pt' not in sim3d.checkpoint_names()
     with pytest.raises(ValueError,match='old five-action'):
         LearnedPolicy(path,SimulationConfig(),123)
+
+
+def test_experiment_catalog_hides_extra_runs_and_uses_best_and_archive(checkpoints):
+    import shutil
+    (checkpoints / 'archive').mkdir()
+    for name in ('experiment_5.pt', 'experiment_12.pt', 'experiment_12_best.pt',
+                 'experiment_13_best.pt', 'experiment_13_seed1001.pt'):
+        shutil.copyfile(checkpoints / 'east.pt', checkpoints / name)
+    shutil.copyfile(checkpoints / 'east.pt', checkpoints / 'archive' / 'experiment_9.pt')
+    entries = sim3d.experiment_catalog()
+    assert len(entries) == 13
+    assert entries[11]['name'] == 'experiment_12_best.pt'
+    assert entries[12]['name'] == 'experiment_13_best.pt'
+    assert entries[8]['name'] == 'archive/experiment_9.pt'
+    assert entries[8]['available']
+    assert not entries[0]['available']
+    session = sim3d.SimulationSession()
+    assert session.reset(123, 'ppo', entries[8]['name'])['checkpoint'] == entries[8]['name']
