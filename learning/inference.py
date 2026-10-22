@@ -78,7 +78,10 @@ class LearnedPolicy:
         return {a.id: row for a,row in zip(agents,logits.softmax(-1).tolist())}
 
     @torch.no_grad()
-    def actions(self, world):
+    def actions(self, world, *, action_selection="sample"):
+        """Sample by probability, or select the highest masked logit (argmax)."""
+        if action_selection not in ("sample", "argmax"):
+            raise ValueError("action_selection must be sample or argmax")
         if world.config.food_carrying != self.food_carrying:
             raise ValueError('Checkpoint food-carrying mode does not match world')
         agents = [a for a in world.agents if a.alive]
@@ -89,6 +92,10 @@ class LearnedPolicy:
         if self.action_masking:
             masks = np.stack([movement_mask(row)[:self.action_count] for row in observations.numpy()])
             logits = mask_action_logits(logits, masks)
-        probabilities = logits.softmax(dim=-1)
-        sampled = torch.multinomial(probabilities, 1, generator=self.generator).squeeze(-1)
+        if action_selection == 'argmax':
+            # torch.argmax resolves exact ties to the lowest action index.
+            sampled = logits.argmax(dim=-1)
+        else:
+            probabilities = logits.softmax(dim=-1)
+            sampled = torch.multinomial(probabilities, 1, generator=self.generator).squeeze(-1)
         return {a.id:int(action) for a,action in zip(agents,sampled.tolist())}

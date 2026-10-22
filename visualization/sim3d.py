@@ -66,13 +66,15 @@ class SimulationSession:
         self.world = World(SimulationConfig())
         self.reset(123, 'heuristic')
 
-    def reset(self, seed, policy, checkpoint=None, *, food_carrying=False):
+    def reset(self, seed, policy, checkpoint=None, *, food_carrying=False, action_selection="sample"):
         if type(seed) is not int or not 0 <= seed <= 2**32 - 1:
             raise ValueError('Seed must be an integer between 0 and 4294967295.')
         if policy not in ('random', 'heuristic', 'ppo'):
             raise ValueError('Choose random, heuristic, or ppo policy.')
         if type(food_carrying) is not bool:
             raise ValueError('food_carrying must be a boolean')
+        if action_selection not in ('sample', 'argmax'):
+            raise ValueError('Choose sample or argmax action selection')
         config = replace(self.world.config, food_carrying=food_carrying)
         learned = None
         if policy == 'ppo':
@@ -87,6 +89,7 @@ class SimulationSession:
             except (ImportError, OSError, RuntimeError, ValueError, KeyError, TypeError, EOFError, pickle.UnpicklingError) as exc:
                 raise ValueError(f'Cannot load PPO checkpoint: {exc}') from exc
         self.seed, self.policy = seed, policy
+        self.action_selection = action_selection
         self.learned = learned
         self.checkpoint = checkpoint if policy == 'ppo' else None
         self.rng = np.random.default_rng(seed + 10000)
@@ -111,6 +114,7 @@ class SimulationSession:
             agents.append(row)
         return {'config': asdict(w.config), 'seed': self.seed, 'policy': self.policy,
                 'checkpoint': self.checkpoint,
+                'action_selection':self.action_selection if self.learned else None,
                 'eating_mode': 'automatic' if w.automatic_eating else 'explicit EAT',
                 'action_masking': bool(self.learned and self.learned.action_masking),
                 'tick': w.tick, 'agents': agents,
@@ -124,7 +128,7 @@ class SimulationSession:
                 (self.world.config.horizon is None or self.world.tick < self.world.config.horizon)):
             actions = {}
             if self.policy == 'ppo':
-                actions = self.learned.actions(self.world)
+                actions = self.learned.actions(self.world, action_selection=self.action_selection)
             else:
                 for a in self.world.agents:
                     if a.alive:
@@ -187,7 +191,7 @@ class SimulationHandler(PreviewHandler):
                 if path == '/api/step':
                     result = self.server.session.step()
                 elif path == '/api/reset':
-                    result = self.server.session.reset(data.get('seed', 123), data.get('policy', 'heuristic'), data.get('checkpoint'), food_carrying=data.get('food_carrying', False))
+                    result = self.server.session.reset(data.get('seed', 123), data.get('policy', 'heuristic'), data.get('checkpoint'), food_carrying=data.get('food_carrying', False), action_selection=data.get('action_selection', 'sample'))
                 else:
                     self.send_json({'error': 'Unknown endpoint'}, 404)
                     return
@@ -206,6 +210,7 @@ def main():
     parser.add_argument('--port', type=int, default=8001)
     parser.add_argument('--checkpoint', help='Checkpoint filename/path within checkpoints/, or latest')
     parser.add_argument('--food-carrying', action='store_true', help='Enable carrying for baseline policies')
+    parser.add_argument('--action-selection', choices=('sample','argmax'), default='sample')
     args = parser.parse_args()
     session = SimulationSession()
     if args.food_carrying:
@@ -214,7 +219,7 @@ def main():
         names = checkpoint_names()
         name = (names[0] if names else '') if args.checkpoint == 'latest' else Path(args.checkpoint).name
         try:
-            session.reset(123, 'ppo', name)
+            session.reset(123, 'ppo', name, action_selection=args.action_selection)
         except ValueError as exc:
             parser.error(str(exc))
     with ThreadingHTTPServer(('127.0.0.1', args.port), SimulationHandler) as server:

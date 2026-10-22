@@ -464,3 +464,20 @@ python -m visualization.sim3d --checkpoint experiment_14.pt
 Experiment 14 now loads the 1,000-update model and automatically enables
 carrying. Restart the viewer to reload it; the original 200-update checkpoint
 is preserved in the local checkpoint archive.
+
+### Sample or argmax during evaluation
+
+Training is unchanged. For inference, choose **Sample** (draw from the model's
+percentages, the default) or **Argmax** (always choose the highest percentage).
+The 3D viewer has a **PPO action choice** selector; apply it with Reset world.
+
+```sh
+python -m learning.evaluate --food-carrying --checkpoints checkpoints/experiment_14.pt \
+  --action-selection both --episodes 30 --start-seed 600000 \
+  --output-dir runs/experiment_14_action_selection_repeat
+```
+
+Use `sample` or `argmax` instead of `both` for a single mode. For Experiment 14
+on these 30 worlds, sampling averaged **10.47 survivors**, versus **5.87** for
+argmax, with zero food-energy waste for both. Sampling stays the default.
+See the [action-selection comparison](project-journal/experiment_14_action_selection.md).

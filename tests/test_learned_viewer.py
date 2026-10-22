@@ -158,3 +158,42 @@ def test_legacy_inspection_has_five_probabilities(checkpoints):
     for agent in state['agents']:
         assert len(agent['next_action_probabilities']) == 5
         assert 'EAT' not in agent['next_action_probabilities']
+
+
+def test_argmax_uses_highest_legal_probability_without_advancing_rng(checkpoints):
+    from learning.inference import LearnedPolicy
+    model = ActorCritic()
+    with torch.no_grad():
+        for parameter in model.parameters():
+            parameter.zero_()
+        model.actor.bias[Action.NORTH] = 100  # Illegal at the top boundary.
+        model.actor.bias[Action.EAST] = 2
+        model.actor.bias[Action.STAY] = 1
+    path = checkpoints / 'choice.pt'
+    torch.save({'model_state_dict': model.state_dict(), 'metadata': {'action_masking': True}}, path)
+    world = World(SimulationConfig(num_agents=1)); world.reset(123)
+    world.agents[0].x = world.agents[0].y = 0
+    policy = LearnedPolicy(path, world.config, 123)
+    before = policy.generator.get_state().clone()
+    probabilities = policy.probabilities(world)[0]
+    assert policy.actions(world, action_selection='argmax') == {0: int(np.argmax(probabilities))}
+    assert policy.actions(world, action_selection='argmax') == {0: Action.EAST}
+    assert torch.equal(before, policy.generator.get_state())
+    with pytest.raises(ValueError, match='action_selection'):
+        policy.actions(world, action_selection='other')
+    with torch.no_grad():
+        policy.model.actor.bias.zero_()
+    assert policy.actions(world, action_selection='argmax') == {0: Action.STAY}  # Lowest index wins ties.
+
+
+def test_viewer_can_select_argmax_and_reset_back_to_default_sampling(checkpoints):
+    session = sim3d.SimulationSession()
+    state = session.reset(123, 'ppo', 'east.pt', action_selection='argmax')
+    assert state['action_selection'] == 'argmax'
+    assert session.step()['agents'][0]['last_action'] == 'EAST'
+    state = session.reset(123, 'ppo', 'east.pt')
+    assert state['action_selection'] == 'sample'
+    before = session.state()
+    with pytest.raises(ValueError):
+        session.reset(123, 'ppo', 'east.pt', action_selection='invalid')
+    assert session.state() == before

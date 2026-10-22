@@ -79,3 +79,17 @@ commands. The existing models cannot gain this action without fresh training.
 Experiment 14 is the trained carrying model, now updated to 1,000 updates: run
 `python -m visualization.sim3d --checkpoint experiment_14.pt` or select Experiment 14
 and reset. The model controls pickup and eating; no forced eating rule is used.
+
+### Sample versus argmax
+
+For PPO, choose **Sample · use percentages** or **Argmax · highest percentage**
+and Reset world. The active choice appears in status and the inspector. This
+only changes inference; it never trains or modifies weights. Sampling remains
+the default. Exact argmax ties resolve to the first action in enum order.
+
+```sh
+python -m visualization.sim3d --checkpoint experiment_14.pt --action-selection argmax
+```
+
+The evaluation CLI supports `--action-selection sample`, `argmax`, or `both`;
+`both` compares the same checkpoints on the same seeds, with baselines run once.

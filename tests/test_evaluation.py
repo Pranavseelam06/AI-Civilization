@@ -61,3 +61,22 @@ def test_corner_trace_and_probability_inspection_do_not_change_sampling(tmp_path
     one,two=LearnedPolicy(path,config,123),LearnedPolicy(path,config,123)
     one.probabilities(world)
     assert one.actions(world)==two.actions(world)
+
+
+def test_evaluation_reports_selection_mode_and_argmax_is_repeatable(tmp_path):
+    torch = pytest.importorskip('torch')
+    from learning.evaluate import evaluate_episode
+    from learning.networks import ActorCritic
+    from civsim.config import SimulationConfig
+    model = ActorCritic()
+    path = tmp_path / 'policy.pt'
+    torch.save({'model_state_dict': model.state_dict(), 'metadata': {'action_masking': True}}, path)
+    config = SimulationConfig(width=4, height=4, num_agents=1, horizon=10)
+    first, trace = evaluate_episode('ppo', 123, config, path, action_selection='argmax')
+    assert first['action_selection'] == 'argmax'
+    assert all(row['action_selection'] == 'argmax' for row in trace)
+    assert (first, trace) == evaluate_episode('ppo', 123, config, path, action_selection='argmax')
+    baseline, _ = evaluate_episode('random', 123, config, action_selection='argmax')
+    assert baseline['action_selection'] == 'baseline'
+    with pytest.raises(ValueError, match='action_selection'):
+        evaluate_episode('ppo', 123, config, path, action_selection='invalid')

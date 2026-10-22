@@ -45,6 +45,7 @@ export async function start() {
   function updateCheckpointControl() {
     $('checkpoint').disabled = $('policy').value !== 'ppo';
     $('food-carrying').disabled = $('policy').value === 'ppo';
+    $('action-selection').disabled = $('policy').value !== 'ppo';
   }
   $('policy').onchange = updateCheckpointControl;
   const {width, height} = state.config;
@@ -168,6 +169,7 @@ export async function start() {
         ? 'Episode finished; no next action.' : 'Model probabilities are available with Trained PPO.');
       return;
     }
+    line(state.action_selection === 'argmax' ? 'Argmax: highest probability wins; exact ties use the first action.' : 'Sampling: choices follow the percentages.');
     line('Next-action probabilities at the current tick (latest action was chosen on the previous tick).');
     for (const [name, probability] of probabilities) {
       const row = document.createElement('div');
@@ -213,7 +215,10 @@ export async function start() {
   }
   function apply(next, snap=false) {
     state = next;
-    if (snap) $('food-carrying').checked = Boolean(state.config.food_carrying);
+    if (snap) {
+      $('food-carrying').checked = Boolean(state.config.food_carrying);
+      $('action-selection').value = state.action_selection ?? 'sample';
+    }
     updateFood(state.food.map(([y,x]) => [x-offsetX,groundY,y-offsetZ]));
     for (const a of state.agents) {
       if (!actors.has(a.id)) {
@@ -254,7 +259,7 @@ export async function start() {
     try {
       apply(await api(path,data),snap);
       $('status').className = '';
-      $('status').textContent = state.finished ? 'Episode finished. Reset to start another.' : `Live ${state.policy}${state.checkpoint ? ' · ' + state.checkpoint + ' · ' + state.eating_mode + (state.action_masking ? ' · masked' : ' · legacy unmasked') : ''}`;
+      $('status').textContent = state.finished ? 'Episode finished. Reset to start another.' : `Live ${state.policy}${state.checkpoint ? ' · ' + state.checkpoint + ' · ' + state.action_selection + ' · ' + state.eating_mode + (state.action_masking ? ' · masked' : ' · legacy unmasked') : ''}`;
     } catch (error) {
       playing = false;
       $('status').className = 'error';
@@ -271,7 +276,7 @@ export async function start() {
       return;
     }
     playing=false;
-    mutate('/api/reset',{seed,policy:$('policy').value,checkpoint:$('checkpoint').value,food_carrying:$('food-carrying').checked},true);
+    mutate('/api/reset',{seed,policy:$('policy').value,checkpoint:$('checkpoint').value,food_carrying:$('food-carrying').checked,action_selection:$('action-selection').value},true);
   };
   $('speed').oninput = () => {$('rate').textContent=$('speed').value;};
   $('camera').disabled=false;
@@ -289,7 +294,7 @@ export async function start() {
   $('policy').value=state.policy;
   if (state.checkpoint) $('checkpoint').value=state.checkpoint;
   updateCheckpointControl();
-  $('status').textContent=`Ready: ${state.policy}${state.checkpoint ? ' · ' + state.checkpoint + ' · ' + state.eating_mode + (state.action_masking ? ' · masked' : ' · legacy unmasked') : ''}. Press Start.`;
+  $('status').textContent=`Ready: ${state.policy}${state.checkpoint ? ' · ' + state.checkpoint + ' · ' + state.action_selection + ' · ' + state.eating_mode + (state.action_masking ? ' · masked' : ' · legacy unmasked') : ''}. Press Start.`;
   let previousTime=performance.now();
   renderer.setAnimationLoop(now=>{
     const dt=Math.min((now-previousTime)/1000,0.1);previousTime=now;

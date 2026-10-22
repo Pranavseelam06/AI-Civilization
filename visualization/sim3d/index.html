@@ -14,6 +14,7 @@
 <label for="policy">Policy</label><select id="policy"><option value="heuristic">Heuristic · seek food</option><option value="random">Random · explore</option><option value="ppo">Trained PPO · checkpoint</option></select>
 <label><input id="food-carrying" type="checkbox"> Food carrying · one slot</label><p class="note">Applies on reset for baselines; PPO uses its checkpoint’s rules. A red dot marks carried food.</p>
 <label for="checkpoint">PPO checkpoint</label><select id="checkpoint" style="width:100%"><option value="">Loading checkpoints…</option></select>
+<label for="action-selection">PPO action choice</label><select id="action-selection" style="width:100%"><option value="sample">Sample · use percentages</option><option value="argmax">Argmax · highest percentage</option></select>
 <label for="seed">World seed</label><input id="seed" type="number" min="0" max="4294967295" step="1" value="123">
 <div class="buttons"><button id="reset" disabled>Reset world</button></div>
 <p class="note">Policy, checkpoint, and seed apply on reset. Drag to orbit, scroll to zoom, right-drag to pan. Space pauses.</p>
