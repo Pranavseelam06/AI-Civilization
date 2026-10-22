@@ -38,7 +38,7 @@ Refresh the page to update the checkpoint list after training. Baseline policies
 still work without PyTorch installed. All inference runs locally on CPU without
 gradients or optimizer updates. Use one browser tab per simulation server.
 
-The experiment menu contains one entry for each Experiment 1–13. Experiments
+The experiment menu contains one entry for each Experiment 1–14. Experiments
 12 and 13 use their validation-selected best checkpoints. Search by number
 (e.g. `4`) above the controls and press Enter to load that experiment, then
 press Start. Clear the search to see the full list. Experiments 1–4 load their
@@ -60,3 +60,22 @@ latest action. Reading them does not sample actions, advance simulation RNG, or
 update model weights. Heuristic/random policies have no neural model probabilities;
 Experiments 1–4 show five probabilities with automatic eating. Finished episodes
 show no next-action probabilities. These values do not represent verbal thoughts.
+
+### Food carrying
+
+Start with `python -m visualization.sim3d --food-carrying` to try the mechanic
+using the heuristic, or enable the Food carrying checkbox and reset a baseline
+world. The heuristic collects underfoot food above 75 energy when its slot is
+empty and consumes stored food at 75 energy or below. This is a hand-written
+demonstration; it is separate from PPO training. Random agents sample all seven
+actions when carrying is enabled. Inventory appears in the inspector and agent
+list; a red dot above a person means it carries one food unit.
+
+A PPO checkpoint chooses its own carrying mode and disables the manual checkbox.
+Existing Experiments 1–13 remain unchanged, and new carrying checkpoints appear
+as separate Food carrying entries. See the root README for training and evaluation
+commands. The existing models cannot gain this action without fresh training.
+
+Experiment 14 is the trained carrying model, now updated to 1,000 updates: run
+`python -m visualization.sim3d --checkpoint experiment_14.pt` or select Experiment 14
+and reset. The model controls pickup and eating; no forced eating rule is used.

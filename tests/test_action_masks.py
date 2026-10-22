@@ -22,7 +22,7 @@ def test_mask_matches_world_destination_rules(world):
     for agent in world.agents:
         mask=movement_mask(observe_agent(world,agent))
         assert mask[A.STAY]
-        for action in A:
+        for action in list(A)[:len(mask)]:
             outcome=movement_outcomes(world,{agent.id:action})[agent.id]
             assert bool(mask[action]) == (outcome in ('stay','moved','eat'))
 

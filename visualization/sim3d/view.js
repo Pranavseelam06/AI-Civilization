@@ -42,7 +42,10 @@ export async function start() {
     $('checkpoint').appendChild(option);
     document.querySelector('#policy option[value="ppo"]').disabled = true;
   }
-  function updateCheckpointControl() {$('checkpoint').disabled = $('policy').value !== 'ppo';}
+  function updateCheckpointControl() {
+    $('checkpoint').disabled = $('policy').value !== 'ppo';
+    $('food-carrying').disabled = $('policy').value === 'ppo';
+  }
   $('policy').onchange = updateCheckpointControl;
   const {width, height} = state.config;
   const renderer = new THREE.WebGLRenderer({antialias: true});
@@ -107,6 +110,9 @@ export async function start() {
   instances(tile,width*height)(land);
   const updateFood = instances(bush,width*height);
   const actors = new Map();
+  const foodBadges = new Map();
+  const badgeGeometry = new THREE.SphereGeometry(0.075, 8, 6);
+  const badgeMaterial = new THREE.MeshBasicMaterial({color: '#ff6f68'});
   const targets = new Map();
   let playing = false, busy = false, lastTick = 0;
   let selectedAgent = null;
@@ -143,6 +149,7 @@ export async function start() {
     };
     if (!agent) {line('Select an agent to inspect it.'); return;}
     line(`Agent ${agent.id} · ${agent.energy}/100 energy · ${agent.alive ? 'alive' : 'dead'}`);
+    line(state.config.food_carrying ? `Carried food: ${agent.carried_food ?? 0}/1` : 'Food carrying is disabled in this experiment.');
     line(`Latest action: ${agent.last_action ?? 'none yet'}${agent.last_outcome ? ' · ' + agent.last_outcome : ''}`);
     if (agent.alive) {
       const matrix = new THREE.Matrix4();
@@ -206,6 +213,7 @@ export async function start() {
   }
   function apply(next, snap=false) {
     state = next;
+    if (snap) $('food-carrying').checked = Boolean(state.config.food_carrying);
     updateFood(state.food.map(([y,x]) => [x-offsetX,groundY,y-offsetZ]));
     for (const a of state.agents) {
       if (!actors.has(a.id)) {
@@ -213,9 +221,12 @@ export async function start() {
         model.traverse(node => {node.userData.agentId = a.id;});
         scene.add(model);
         actors.set(a.id, model);
+        const badge = new THREE.Mesh(badgeGeometry, badgeMaterial);
+        badge.visible = false; scene.add(badge); foodBadges.set(a.id, badge);
       }
       const model = actors.get(a.id);
       model.visible = a.alive;
+      foodBadges.get(a.id).visible = Boolean(a.alive && state.config.food_carrying && a.carried_food);
       const target = new THREE.Vector3(a.x-offsetX,groundY+a.z,a.y-offsetZ);
       const previous = targets.get(a.id);
       if (previous && !previous.equals(target)) {
@@ -226,10 +237,10 @@ export async function start() {
     }
     const alive = state.agents.filter(a=>a.alive).length;
     const horizon = state.config.horizon ?? '∞';
-    $('metrics').textContent = `Tick ${state.tick} / ${horizon} · Alive ${alive}/${state.agents.length} · Food ${state.food.length} · Eaten ${state.food_consumed} · Wasted energy ${state.food_energy_wasted}`;
+    $('metrics').textContent = `Tick ${state.tick} / ${horizon} · Alive ${alive}/${state.agents.length} · Food ${state.food.length} · Carrying ${state.agents.reduce((sum,a) => sum+(a.carried_food ?? 0),0)} · Eaten ${state.food_consumed} · Wasted energy ${state.food_energy_wasted}`;
     $('agents').replaceChildren(...state.agents.map(a => {
       const row = document.createElement('div');
-      row.textContent = `Agent ${a.id} · ${names[a.id%4]} · ${a.alive ? `${a.energy} energy` : 'dead'}`;
+      row.textContent = `Agent ${a.id} · ${names[a.id%4]} · ${a.alive ? `${a.energy} energy${state.config.food_carrying ? ' · food ' + (a.carried_food ?? 0) + '/1' : ''}` : 'dead'}`;
       return row;
     }));
     if (state.finished) playing = false;
@@ -260,7 +271,7 @@ export async function start() {
       return;
     }
     playing=false;
-    mutate('/api/reset',{seed,policy:$('policy').value,checkpoint:$('checkpoint').value},true);
+    mutate('/api/reset',{seed,policy:$('policy').value,checkpoint:$('checkpoint').value,food_carrying:$('food-carrying').checked},true);
   };
   $('speed').oninput = () => {$('rate').textContent=$('speed').value;};
   $('camera').disabled=false;
@@ -285,7 +296,12 @@ export async function start() {
     if (playing && !busy && now-lastTick>=1000/Number($('speed').value)) {
       lastTick=now;mutate('/api/step',{});
     }
-    for (const [id,model] of actors) model.position.lerp(targets.get(id),1-Math.exp(-18*dt));
+    for (const [id,model] of actors) {
+      model.position.lerp(targets.get(id),1-Math.exp(-18*dt));
+      const badge = foodBadges.get(id);
+      badge.position.copy(model.position);
+      badge.position.y += (id%4>=2 ? 0.55 : 0.78) + 0.15;
+    }
     if (selectionRing.visible && actors.has(selectedAgent)) {
       selectionRing.position.copy(actors.get(selectedAgent).position);
       selectionRing.position.y += 0.025;

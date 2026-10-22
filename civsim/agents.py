@@ -11,6 +11,6 @@ class AgentState:
     z: int = 0
     energy: int = 100
     alive: bool = True
+    carried_food: int = 0  # One slot: 0 or 1.
 
-# TODO: Add inventory when needed.
 # TODO: Keep learned policies separate from mutable simulation state.

@@ -29,8 +29,13 @@ def movement_outcomes(world, actions):
             outcomes[agent.id] = 'stay'
             continue
         if action == Action.EAT:
-            outcomes[agent.id] = ('eat' if world.food[agent.y,agent.x] and agent.energy < 100
+            outcomes[agent.id] = ('eat' if (world.food[agent.y,agent.x] or
+                                  (world.config.food_carrying and agent.carried_food)) and agent.energy < 100
                                   else 'eat_unavailable')
+            continue
+        if action == Action.PICKUP:
+            outcomes[agent.id] = ('pickup' if world.config.food_carrying
+                and not agent.carried_food and world.food[agent.y,agent.x] else 'pickup_unavailable')
             continue
         dx,dy = MOVEMENT_DELTAS[action]
         x,y = agent.x+dx,agent.y+dy

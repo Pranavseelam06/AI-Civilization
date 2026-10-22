@@ -12,12 +12,15 @@ from civsim.terrain import create_grid, spawn_agents
 
 class World:
     def __init__(self, config: SimulationConfig, *, automatic_eating=False):
+        if automatic_eating and config.food_carrying:
+            raise ValueError("Automatic eating cannot be combined with food carrying")
         self.automatic_eating = automatic_eating
         self.config = config
         self.grid = create_grid(config.width, config.height)
         self.food = np.zeros_like(self.grid, dtype=bool)
         self.regrowth_rng = np.random.default_rng(1)
         self.food_consumed = 0
+        self.food_picked_up = 0
         self.food_energy_gained = 0
         self.food_energy_wasted = 0
         self.missed_meals = 0
@@ -34,6 +37,7 @@ class World:
         self.eating_rng = np.random.default_rng(eating_seed)
         self.regrowth_rng = np.random.default_rng(regrowth_seed)
         self.food_consumed = 0
+        self.food_picked_up = 0
         self.food_energy_gained = 0
         self.food_energy_wasted = 0
         self.missed_meals = 0
@@ -47,7 +51,10 @@ class World:
         Cells occupied at the start of the tick cannot be entered, even if
         their occupant moves away. Contenders for the same empty cell all stay.
         Dead agents do not occupy cells or block movement.
-        EAT stays in place and consumes food there if energy is below 100.
+        EAT stays in place and consumes food if energy is below 100.
+        With food_carrying enabled, PICKUP stores one underfoot food (no reward
+        or energy gain); EAT uses stored food first, otherwise underfoot food.
+        PICKUP and EAT each cost one tick. Carried food is lost on death.
         Eating restores 25 energy (capped at 100), then each living agent loses
         one energy, including when staying. Uneaten food remains for later ticks.
         Return rewards by agent ID: death -10, signed hunger-based eating rewards,
@@ -71,8 +78,10 @@ class World:
                 action = Action(actions.get(agent.id, Action.STAY))
             except (ValueError, TypeError):
                 action = Action.STAY
+            if action == Action.PICKUP and not self.config.food_carrying:
+                action = Action.STAY
             chosen_actions[agent.id] = action
-            if action == Action.EAT:
+            if action in (Action.EAT, Action.PICKUP):
                 continue
             dx, dy = MOVEMENT_DELTAS[action]
             x, y = agent.x + dx, agent.y + dy
@@ -97,11 +106,20 @@ class World:
             if (energy_before_eating < 30 and food_available_before_action[agent.id]
                     and chosen_actions[agent.id] != Action.EAT):
                 self.missed_meals += 1  # Diagnostic only; never a reward penalty.
+            if (self.config.food_carrying and chosen_actions[agent.id] == Action.PICKUP
+                    and agent.carried_food == 0 and self.food[agent.y, agent.x]):
+                self.food[agent.y, agent.x] = False
+                agent.carried_food = 1
+                self.food_picked_up += 1
+            from_inventory = self.config.food_carrying and agent.carried_food == 1
             should_eat = (self.eating_rng.random() < 0.5 if self.automatic_eating
                           and self.food[agent.y, agent.x] else False)
-            if (self.food[agent.y, agent.x] and (should_eat if self.automatic_eating
+            if ((from_inventory or self.food[agent.y, agent.x]) and (should_eat if self.automatic_eating
                     else chosen_actions[agent.id] == Action.EAT and agent.energy < 100)):
-                self.food[agent.y, agent.x] = False
+                if from_inventory:
+                    agent.carried_food = 0
+                else:
+                    self.food[agent.y, agent.x] = False
                 self.food_consumed += 1
                 gained = min(25, 100 - agent.energy)
                 agent.energy += gained
@@ -110,6 +128,7 @@ class World:
             agent.energy = max(0, agent.energy - 1)
             if agent.energy == 0:
                 agent.alive = False
+                agent.carried_food = 0  # Carried food is lost on death; no drops yet.
             episode_end = (self.config.horizon is not None
                            and self.tick + 1 == self.config.horizon)
             rewards[agent.id] = calculate_reward(

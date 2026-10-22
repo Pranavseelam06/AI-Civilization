@@ -12,6 +12,7 @@
 <div class="buttons"><button id="play" disabled>Start</button><button id="step" disabled>Step</button><button id="camera" disabled>Camera</button></div>
 <label for="speed">Speed: <span id="rate">10</span> ticks/sec</label><input id="speed" type="range" min="1" max="30" value="10">
 <label for="policy">Policy</label><select id="policy"><option value="heuristic">Heuristic · seek food</option><option value="random">Random · explore</option><option value="ppo">Trained PPO · checkpoint</option></select>
+<label><input id="food-carrying" type="checkbox"> Food carrying · one slot</label><p class="note">Applies on reset for baselines; PPO uses its checkpoint’s rules. A red dot marks carried food.</p>
 <label for="checkpoint">PPO checkpoint</label><select id="checkpoint" style="width:100%"><option value="">Loading checkpoints…</option></select>
 <label for="seed">World seed</label><input id="seed" type="number" min="0" max="4294967295" step="1" value="123">
 <div class="buttons"><button id="reset" disabled>Reset world</button></div>

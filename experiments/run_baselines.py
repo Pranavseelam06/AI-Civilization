@@ -34,10 +34,11 @@ def run_episode(policy: str, seed: int, config: SimulationConfig) -> dict:
             if not agent.alive:
                 continue
             if policy == "random":
-                actions[agent.id] = random_policy(rng)
+                actions[agent.id] = random_policy(rng, food_carrying=config.food_carrying)
             else:
                 actions[agent.id] = heuristic_policy(
-                    agent.energy, nearest_food(world.food, agent), rng
+                    agent.energy, nearest_food(world.food, agent), rng,
+                    carried_food=agent.carried_food if config.food_carrying else None
                 )
         world.step(actions)
 
@@ -50,6 +51,7 @@ def run_episode(policy: str, seed: int, config: SimulationConfig) -> dict:
         "survivors": sum(a.alive for a in world.agents),
         "mean_survival_ticks": survival_ticks / config.num_agents,
         "food_consumed": world.food_consumed,
+        "food_picked_up": world.food_picked_up,
         "food_energy_gained": world.food_energy_gained,
         "food_energy_wasted": world.food_energy_wasted,
     }
@@ -60,11 +62,12 @@ def main() -> None:
     parser.add_argument("--episodes", type=int, default=10)
     parser.add_argument("--start-seed", type=int, default=123)
     parser.add_argument("--output", type=Path, default=Path("runs/baselines.csv"))
+    parser.add_argument("--food-carrying", action="store_true")
     args = parser.parse_args()
     if args.episodes <= 0 or args.start_seed < 0:
         parser.error("episodes must be positive and start-seed must be nonnegative")
 
-    config = SimulationConfig()
+    config = SimulationConfig(food_carrying=args.food_carrying)
     rows = [
         run_episode(policy, seed, config)
         for seed in range(args.start_seed, args.start_seed + args.episodes)

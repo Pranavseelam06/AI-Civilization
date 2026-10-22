@@ -22,7 +22,7 @@ def main() -> None:
     ticks = config.horizon if config.horizon is not None else 500
     for _ in range(ticks):
         actions = {
-            agent.id: Action(int(rng.integers(len(Action))))
+            agent.id: Action(int(rng.integers(6)))
             for agent in world.agents
         }
         world.step(actions)

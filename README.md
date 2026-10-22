@@ -405,3 +405,62 @@ See the [replication report](project-journal/experiment_13.md).
 ```sh
 python -m visualization.sim3d --checkpoint experiment_13_best.pt
 ```
+
+### Optional one-slot food carrying
+
+Try the new mechanic with the heuristic in the 3D viewer:
+
+```sh
+python -m visualization.sim3d --food-carrying
+```
+
+Press Start, or enable **Food carrying · one slot** and reset a baseline world.
+A red dot marks agents carrying food; the inspector shows their inventory.
+`PICKUP` takes food from the current square into one slot, without feeding the
+agent or awarding points. `EAT` uses carried food first, otherwise ground food,
+restoring up to 25 energy. Both actions take one tick and its usual one-energy
+cost. A full slot cannot collect more food, full-energy agents cannot eat,
+and carried food is lost on death. No sharing or dropping is implemented yet.
+
+Carrying is off by default. Experiments 1–13 use their original rules; selecting
+an old PPO checkpoint automatically disables carrying. New carrying checkpoints
+use seven actions and 102 observation values, including the inventory flag,
+and appear separately in the viewer menu.
+
+To train a **new** model for this task:
+
+```sh
+python -m learning.train --food-carrying --updates 200 --ticks 128 \
+  --checkpoint checkpoints/food_carrying_1.pt --run-dir runs/food_carrying_1_training
+```
+
+Evaluate on new worlds and then view the model:
+
+```sh
+python -m learning.evaluate --food-carrying --checkpoints checkpoints/food_carrying_1.pt \
+  --episodes 30 --output-dir runs/food_carrying_1_evaluation
+python -m visualization.sim3d --checkpoint food_carrying_1.pt
+```
+
+The 200-update command is a starting run, not an established training budget for
+learning storage. Rewards are unchanged: pickup earns nothing; consuming stored
+food earns the existing hunger-based food reward. Only a short pipeline smoke
+test has been run so far, so no learned carrying or survival improvement is claimed.
+
+### Experiment 14: food carrying, updated to 1,000 updates
+
+Extending the same seed and carrying setup from 200 to 1,000 updates raised mean
+survivors from 4.63 to **10.47 out of 12** on the same 30 evaluation worlds and
+reduced food-energy waste from 4.34% to **zero**. It improved survivor counts
+in 29 worlds and tied in one, compared with the original 200-update model;
+the carrying heuristic averaged 9.70 survivors. This is a single training seed
+on reused evaluation worlds, not an independent replication.
+See the [Experiment 14 report](project-journal/experiment_14.md).
+
+```sh
+python -m visualization.sim3d --checkpoint experiment_14.pt
+```
+
+Experiment 14 now loads the 1,000-update model and automatically enables
+carrying. Restart the viewer to reload it; the original 200-update checkpoint
+is preserved in the local checkpoint archive.

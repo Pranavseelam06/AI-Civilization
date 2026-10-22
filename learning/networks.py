@@ -5,7 +5,6 @@ from torch import nn
 from torch.distributions import Categorical
 
 from civsim.observations import OBSERVATION_SIZE
-from civsim.actions import Action
 
 
 def mask_action_logits(logits, action_mask=None):
@@ -19,7 +18,7 @@ def mask_action_logits(logits, action_mask=None):
 
 
 class ActorCritic(nn.Module):
-    def __init__(self, observation_size=OBSERVATION_SIZE, action_count=len(Action)):
+    def __init__(self, observation_size=OBSERVATION_SIZE, action_count=6):
         super().__init__()
 
         self.features = nn.Sequential(
@@ -32,7 +31,7 @@ class ActorCritic(nn.Module):
         self.critic = nn.Linear(128, 1)
 
     def forward(self, observations):
-        """Map observations to six action logits and one value per agent."""
+        """Map observations to action logits and one value per agent."""
         features = self.features(observations)
         return self.actor(features), self.critic(features).squeeze(-1)
 

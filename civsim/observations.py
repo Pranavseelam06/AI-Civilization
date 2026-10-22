@@ -10,22 +10,30 @@ if TYPE_CHECKING:
     from civsim.world import World
 
 
-OBSERVATION_SIZE = 101  # Four 5 x 5 maps, followed by one energy value.
+OBSERVATION_SIZE = 101  # Original task: four maps followed by energy.
+CARRYING_OBSERVATION_SIZE = 102  # Inventory flag appended after energy.
 
 
 def movement_mask(observation: np.ndarray) -> np.ndarray:
     """Legal destinations from local observation only; STAY is always allowed.
 
-    EAT is allowed only with food underfoot and energy below maximum.
+    EAT requires food underfoot or in inventory, and energy below maximum.
+    Carrying observations additionally allow PICKUP with food and an empty slot.
     Matches pre-step occupancy rules. Contested empty destinations cannot be
     predicted from one observation and are still resolved by World.step().
     """
     patch = observation[:100].reshape(4, 5, 5)
-    mask = np.ones(len(Action), dtype=bool)
+    carrying = len(observation) == CARRYING_OBSERVATION_SIZE
+    if len(observation) not in (OBSERVATION_SIZE, CARRYING_OBSERVATION_SIZE):
+        raise ValueError("Unsupported observation size")
+    mask = np.ones(7 if carrying else 6, dtype=bool)
     for action, (dx, dy) in MOVEMENT_DELTAS.items():
         if action != Action.STAY:
             mask[action] = not patch[1:4, 2+dy, 2+dx].any()
-    mask[Action.EAT] = bool(patch[0, 2, 2]) and observation[-1] < 1
+    stored = carrying and observation[101] > 0
+    mask[Action.EAT] = (bool(patch[0, 2, 2]) or stored) and observation[100] < 1
+    if carrying:
+        mask[Action.PICKUP] = bool(patch[0, 2, 2]) and not stored
     return mask
 
 
@@ -37,7 +45,8 @@ def observe_agent(world: "World", agent: AgentState) -> np.ndarray:
     Each map is row-major, with the observer at [2, 2]. North is up; the
     view does not rotate. Outside-world cells have boundary=1 and all other
     channels=0. The observer is excluded from the other-agent channel.
-    Entry 100 is own energy / 100, clipped to [0, 1]. No IDs, absolute
+    Entry 100 is own energy / 100, clipped to [0, 1]. In carrying mode,
+    entry 101 indicates own stored food (0 or 1). No IDs, absolute
     coordinates, global counters, or distant state are included.
     """
     patch = np.zeros((4, 5, 5), dtype=np.float32)
@@ -58,7 +67,10 @@ def observe_agent(world: "World", agent: AgentState) -> np.ndarray:
             patch[1, row, column] = world.grid[y, x] != 0
             patch[3, row, column] = (x, y) in neighbors
     energy = np.array([np.clip(agent.energy / 100, 0, 1)], dtype=np.float32)
-    return np.concatenate((patch.ravel(), energy))
+    parts = [patch.ravel(), energy]
+    if world.config.food_carrying:
+        parts.append(np.array([agent.carried_food], dtype=np.float32))
+    return np.concatenate(parts)
 
 
 def nearest_food(
@@ -80,5 +92,3 @@ def nearest_food(
         if nearest is None or distance < nearest[2]:
             nearest = (dx, dy, distance)
     return nearest
-
-# TODO: Add own inventory when inventory is implemented.

@@ -3,7 +3,7 @@
 import argparse
 import json
 import pickle
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 from threading import Lock
@@ -27,7 +27,7 @@ def experiment_catalog():
     """One entry per experiment; retain training artifacts outside the menu."""
     from learning.inference import compatible_checkpoint
     entries = []
-    for number in range(1, 14):
+    for number in range(1, 15):
         stem = f'experiment_{number}'
         candidates = ([CHECKPOINTS / f'{stem}_best.pt'] if number >= 12 else [])
         candidates += [CHECKPOINTS / f'{stem}.pt', CHECKPOINTS / 'archive' / f'{stem}.pt']
@@ -37,6 +37,12 @@ def experiment_catalog():
         entries.append({'name': str(path.relative_to(CHECKPOINTS)) if path else f'{stem}.pt',
                         'label': f'Experiment {number}' + (f' — unavailable: {reason}' if reason else ''),
                         'available': available})
+    # New carrying policies are a separate task, not extra stages of old experiments.
+    from learning.inference import checkpoint_food_carrying
+    for path in sorted(CHECKPOINTS.glob('*.pt')):
+        if (compatible_checkpoint(path) and checkpoint_food_carrying(path)
+                and not any(e['name'] == path.name for e in entries)):
+            entries.append({'name': path.name, 'label': f'Food carrying · {path.stem}', 'available': True})
     return entries
 
 
@@ -60,11 +66,14 @@ class SimulationSession:
         self.world = World(SimulationConfig())
         self.reset(123, 'heuristic')
 
-    def reset(self, seed, policy, checkpoint=None):
+    def reset(self, seed, policy, checkpoint=None, *, food_carrying=False):
         if type(seed) is not int or not 0 <= seed <= 2**32 - 1:
             raise ValueError('Seed must be an integer between 0 and 4294967295.')
         if policy not in ('random', 'heuristic', 'ppo'):
             raise ValueError('Choose random, heuristic, or ppo policy.')
+        if type(food_carrying) is not bool:
+            raise ValueError('food_carrying must be a boolean')
+        config = replace(self.world.config, food_carrying=food_carrying)
         learned = None
         if policy == 'ppo':
             names = checkpoint_names()
@@ -72,15 +81,16 @@ class SimulationSession:
             if checkpoint not in names:
                 raise ValueError('Choose an existing checkpoint from checkpoints/.')
             try:
-                from learning.inference import LearnedPolicy
-                learned = LearnedPolicy(CHECKPOINTS / checkpoint, self.world.config, seed, allow_legacy=True)
+                from learning.inference import LearnedPolicy, checkpoint_food_carrying
+                config = replace(config, food_carrying=checkpoint_food_carrying(CHECKPOINTS / checkpoint))
+                learned = LearnedPolicy(CHECKPOINTS / checkpoint, config, seed, allow_legacy=True)
             except (ImportError, OSError, RuntimeError, ValueError, KeyError, TypeError, EOFError, pickle.UnpicklingError) as exc:
                 raise ValueError(f'Cannot load PPO checkpoint: {exc}') from exc
         self.seed, self.policy = seed, policy
         self.learned = learned
         self.checkpoint = checkpoint if policy == 'ppo' else None
         self.rng = np.random.default_rng(seed + 10000)
-        self.world = World(self.world.config, automatic_eating=bool(learned and learned.automatic_eating))
+        self.world = World(config, automatic_eating=bool(learned and learned.automatic_eating))
         self.world.reset(seed)
         self.last_actions = {}
         self.last_outcomes = {}
@@ -106,6 +116,7 @@ class SimulationSession:
                 'tick': w.tick, 'agents': agents,
                 'food': np.argwhere(w.food).tolist(), 'food_consumed': w.food_consumed,
                 'food_energy_wasted': w.food_energy_wasted,
+                'food_picked_up': w.food_picked_up,
                 'finished': finished}
 
     def step(self):
@@ -117,8 +128,9 @@ class SimulationSession:
             else:
                 for a in self.world.agents:
                     if a.alive:
-                        actions[a.id] = (random_policy(self.rng) if self.policy == 'random'
-                                        else heuristic_policy(a.energy, nearest_food(self.world.food, a), self.rng))
+                        actions[a.id] = (random_policy(self.rng, food_carrying=self.world.config.food_carrying) if self.policy == 'random'
+                                        else heuristic_policy(a.energy, nearest_food(self.world.food, a), self.rng,
+                                            carried_food=a.carried_food if self.world.config.food_carrying else None))
             self.last_actions.update({agent_id: Action(action).name for agent_id, action in actions.items()})
             self.last_outcomes.update(movement_outcomes(self.world, actions))
             self.world.step(actions)
@@ -175,7 +187,7 @@ class SimulationHandler(PreviewHandler):
                 if path == '/api/step':
                     result = self.server.session.step()
                 elif path == '/api/reset':
-                    result = self.server.session.reset(data.get('seed', 123), data.get('policy', 'heuristic'), data.get('checkpoint'))
+                    result = self.server.session.reset(data.get('seed', 123), data.get('policy', 'heuristic'), data.get('checkpoint'), food_carrying=data.get('food_carrying', False))
                 else:
                     self.send_json({'error': 'Unknown endpoint'}, 404)
                     return
@@ -193,8 +205,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--port', type=int, default=8001)
     parser.add_argument('--checkpoint', help='Checkpoint filename/path within checkpoints/, or latest')
+    parser.add_argument('--food-carrying', action='store_true', help='Enable carrying for baseline policies')
     args = parser.parse_args()
     session = SimulationSession()
+    if args.food_carrying:
+        session.reset(123, 'heuristic', food_carrying=True)
     if args.checkpoint:
         names = checkpoint_names()
         name = (names[0] if names else '') if args.checkpoint == 'latest' else Path(args.checkpoint).name

@@ -9,12 +9,27 @@ from learning.networks import ActorCritic, mask_action_logits
 from civsim.actions import Action
 
 
+def checkpoint_layout(saved):
+    """Supported observation/action pairs; never resize or reinterpret weights."""
+    weights = saved['model_state_dict']
+    layout = (weights['features.0.weight'].shape[1], weights['actor.weight'].shape[0])
+    if layout not in ((101, 5), (101, 6), (102, 7)):
+        raise ValueError('Unsupported checkpoint observation/action layout')
+    return layout
+
+
+def checkpoint_food_carrying(path):
+    saved = torch.load(path, map_location='cpu', weights_only=True)
+    return checkpoint_layout(saved) == (102, 7)
+
+
 def compatible_checkpoint(path, *, allow_legacy=False):
-    """Exclude obsolete five-action checkpoints from automatic selection."""
+    """Accept original explicit-EAT and carrying models; legacy five is opt-in."""
     try:
         saved = torch.load(path, map_location="cpu", weights_only=True)
-        return saved["model_state_dict"]["actor.weight"].shape[0] in ((5, len(Action)) if allow_legacy else (len(Action),))
-    except (OSError, ValueError, KeyError, TypeError, RuntimeError, EOFError, pickle.UnpicklingError):
+        layout = checkpoint_layout(saved)
+        return layout != (101, 5) or allow_legacy
+    except (OSError, ValueError, KeyError, IndexError, TypeError, RuntimeError, EOFError, pickle.UnpicklingError):
         return False
 
 
@@ -23,9 +38,12 @@ class LearnedPolicy:
         saved = torch.load(path, map_location='cpu', weights_only=True)
         if not isinstance(saved, dict) or 'model_state_dict' not in saved:
             raise ValueError('Checkpoint must contain model_state_dict')
-        self.action_count = saved['model_state_dict']['actor.weight'].shape[0]
+        self.observation_size, self.action_count = checkpoint_layout(saved)
+        self.food_carrying = self.observation_size == 102
+        if self.food_carrying != config.food_carrying:
+            raise ValueError('Checkpoint food-carrying mode does not match environment')
         self.automatic_eating = self.action_count == 5
-        if self.action_count != len(Action) and not (allow_legacy and self.automatic_eating):
+        if self.automatic_eating and not allow_legacy:
             raise ValueError('This checkpoint uses the old five-action automatic-eating rules. '
                              'Train a new six-action checkpoint with explicit EAT.')
         environment = saved.get('metadata', {}).get('environment', {})
@@ -37,7 +55,7 @@ class LearnedPolicy:
                 raise ValueError(f'Checkpoint {key} does not match viewer settings')
         # Model initialization must not alter another session's action randomness.
         with torch.random.fork_rng():
-            self.model = ActorCritic(action_count=self.action_count)
+            self.model = ActorCritic(observation_size=self.observation_size, action_count=self.action_count)
         self.model.load_state_dict(saved['model_state_dict'])
         if not all(torch.isfinite(p).all() for p in self.model.parameters()):
             raise ValueError('Checkpoint contains non-finite weights')
@@ -47,6 +65,8 @@ class LearnedPolicy:
     @torch.no_grad()
     def probabilities(self, world):
         """Inspect action probabilities without drawing actions or advancing RNG."""
+        if world.config.food_carrying != self.food_carrying:
+            raise ValueError('Checkpoint food-carrying mode does not match world')
         agents = [a for a in world.agents if a.alive]
         if not agents:
             return {}
@@ -59,6 +79,8 @@ class LearnedPolicy:
 
     @torch.no_grad()
     def actions(self, world):
+        if world.config.food_carrying != self.food_carrying:
+            raise ValueError('Checkpoint food-carrying mode does not match world')
         agents = [a for a in world.agents if a.alive]
         if not agents:
             return {}

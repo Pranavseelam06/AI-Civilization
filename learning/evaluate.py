@@ -20,7 +20,7 @@ from civsim.rewards import REWARD_SPEC
 from civsim.observations import nearest_food
 from experiments.diagnostics import movement_outcomes, near_corner
 from learning.baselines import random_policy, heuristic_policy
-from learning.inference import LearnedPolicy, compatible_checkpoint
+from learning.inference import LearnedPolicy, compatible_checkpoint, checkpoint_food_carrying
 
 
 REJECTED = ('boundary','obstacle','occupied','contested','invalid')
@@ -37,6 +37,7 @@ def evaluate_episode(policy, seed, config, checkpoint=None):
     rng = np.random.default_rng(seed+10000)
     counts = Counter()
     survival_ticks = total_reward = corner_ticks = 0
+    stored_food_consumed = carrying_agent_ticks = 0
     corner_samples = []
     while world.tick < config.horizon and any(a.alive for a in world.agents):
         living = [a for a in world.agents if a.alive]
@@ -46,8 +47,12 @@ def evaluate_episode(policy, seed, config, checkpoint=None):
         if learned:
             actions = learned.actions(world)
         else:
-            actions = {a.id:(random_policy(rng) if policy=='random' else
-                            heuristic_policy(a.energy,nearest_food(world.food,a),rng)) for a in living}
+            actions = {a.id:(random_policy(rng, food_carrying=config.food_carrying) if policy=='random' else
+                            heuristic_policy(a.energy,nearest_food(world.food,a),rng,
+                                carried_food=a.carried_food if config.food_carrying else None)) for a in living}
+        carrying_agent_ticks += sum(a.carried_food for a in living)
+        stored_food_consumed += sum(config.food_carrying and a.carried_food == 1
+            and a.energy < 100 and actions.get(a.id) == Action.EAT for a in living)
         outcomes = movement_outcomes(world,actions)
         counts.update(outcomes.values())
         # Limit real-corner samples per episode, without advancing action RNG.
@@ -60,10 +65,10 @@ def evaluate_episode(policy, seed, config, checkpoint=None):
                     'tick':world.tick, 'agent_id':agent.id,'x':agent.x,'y':agent.y,
                     'energy':agent.energy,'action':Action(actions[agent.id]).name,
                     'outcome':outcomes[agent.id],
-                    **{f'p_{a.name.lower()}':probabilities[agent.id][a.value] for a in Action}})
+                    **{f'p_{a.name.lower()}':probabilities[agent.id][a.value] for a in list(Action)[:len(probabilities[agent.id])]}})
         total_reward += sum(world.step(actions).values())
     attempts = sum(counts.values())
-    move_attempts = attempts - counts['stay'] - counts['eat'] - counts['eat_unavailable']
+    move_attempts = attempts - counts['stay'] - counts['eat'] - counts['eat_unavailable'] - counts['pickup'] - counts['pickup_unavailable']
     rejected = sum(counts[k] for k in REJECTED)
     row = {'policy':policy, 'checkpoint':str(checkpoint) if checkpoint else '',
            'action_masking':bool(learned and learned.action_masking),
@@ -71,13 +76,18 @@ def evaluate_episode(policy, seed, config, checkpoint=None):
            'survivors':sum(a.alive for a in world.agents),
            'mean_survival_ticks':survival_ticks/config.num_agents,
            'food_consumed':world.food_consumed,'total_reward':total_reward,
+           'food_picked_up':world.food_picked_up,
+           'stored_food_consumed':stored_food_consumed,
+           'carrying_agent_ticks':carrying_agent_ticks,
+           'carried_food_remaining':sum(a.carried_food for a in world.agents),
+           'carried_food_lost':world.food_picked_up - stored_food_consumed - sum(a.carried_food for a in world.agents),
            'food_energy_gained':world.food_energy_gained,'food_energy_wasted':world.food_energy_wasted,
            'missed_meals':world.missed_meals,
            'episode_ticks':world.tick,'agent_ticks':attempts,
            'move_attempts':move_attempts,'rejected_moves':rejected,
            'rejected_move_fraction':rejected/move_attempts if move_attempts else 0,
            'corner_tick_fraction':corner_ticks/attempts if attempts else 0,
-           **{f'actions_{k}':counts[k] for k in ('stay','moved','eat','eat_unavailable',*REJECTED)}}
+           **{f'actions_{k}':counts[k] for k in ('stay','moved','eat','eat_unavailable','pickup','pickup_unavailable',*REJECTED)}}
     return row,corner_samples
 
 
@@ -95,23 +105,27 @@ def main():
     parser.add_argument('--episodes',type=int,default=10)
     parser.add_argument('--start-seed',type=int,help='Default: safely beyond recorded training bounds')
     parser.add_argument('--output-dir',type=Path)
+    parser.add_argument('--food-carrying',action='store_true',help='Evaluate the new inventory task')
     args=parser.parse_args()
     if args.episodes <= 0 or (args.start_seed is not None and args.start_seed < 0):
         parser.error('episodes must be positive; start-seed must be nonnegative')
     torch.set_num_threads(1)
     folder=Path(__file__).resolve().parents[1]/'checkpoints'
-    available=sorted((p for p in folder.glob('*.pt') if compatible_checkpoint(p)),key=lambda p:p.stat().st_mtime,reverse=True)
+    available=sorted((p for p in folder.glob('*.pt') if compatible_checkpoint(p) and checkpoint_food_carrying(p) == args.food_carrying),key=lambda p:p.stat().st_mtime,reverse=True)
     paths=[]
     for requested in args.checkpoints:
         if requested in ('latest','all'):
             if not available:
-                parser.error('No compatible six-action checkpoints found; train a new model first')
+                parser.error('No compatible checkpoints for the requested task; train one first')
             paths.extend(available[:1] if requested=='latest' else available)
         else:
             path=Path(requested)
             if not path.is_file(): parser.error(f'Checkpoint not found: {path}')
             paths.append(path)
     paths=list(dict.fromkeys(p.resolve() for p in paths))
+    for path in paths:
+        if checkpoint_food_carrying(path) != args.food_carrying:
+            parser.error('Checkpoint task differs: use --food-carrying only for carrying checkpoints')
     training=[]
     safe_seed=10000
     for path in paths:
@@ -129,7 +143,7 @@ def main():
     output=args.output_dir or Path(f'runs/evaluation_{datetime.now():%Y%m%d_%H%M%S_%f}')
     if output.exists() and any(output.iterdir()): parser.error('Choose an empty output directory')
     output.mkdir(parents=True,exist_ok=True)
-    config=SimulationConfig()
+    config=SimulationConfig(food_carrying=args.food_carrying)
     rows,samples=[],[]
     started=time.perf_counter()
     for policy,checkpoint in [('random',None),('heuristic',None),*[('ppo',p) for p in paths]]:

@@ -31,6 +31,7 @@ class ReplayRecorder:
                     'agents': [asdict(a) for a in world.agents],
                     'food': np.argwhere(world.food).tolist(),
                     'food_consumed': world.food_consumed,
+                    'food_picked_up': world.food_picked_up,
                     'food_energy_gained': world.food_energy_gained,
                     'food_energy_wasted': world.food_energy_wasted})
 
@@ -38,6 +39,7 @@ class ReplayRecorder:
         self.write({'type': 'summary', 'tick': world.tick,
                     'survivors': sum(a.alive for a in world.agents),
                     'food_consumed': world.food_consumed,
+                    'food_picked_up': world.food_picked_up,
                     'food_energy_gained': world.food_energy_gained,
                     'food_energy_wasted': world.food_energy_wasted})
         self.file.close()
@@ -75,6 +77,7 @@ def load_replay(path):
             frames.append(SimpleNamespace(config=config, grid=terrain.copy(), food=food,
                           agents=agents, tick=record['tick'],
                           food_consumed=record['food_consumed'],
+                          food_picked_up=record.get('food_picked_up',0),
                           food_energy_gained=record.get('food_energy_gained',0),
                           food_energy_wasted=record.get('food_energy_wasted',0)))
         if not frames:
