@@ -116,3 +116,45 @@ def test_legacy_automatic_eating_can_consume_at_full_energy():
     assert world.food_consumed == 1
     assert world.food_energy_wasted == 25
     assert world.agents[0].energy == 99
+
+
+def test_inspection_probabilities_are_read_only_and_actions_are_from_previous_tick(checkpoints):
+    torch.save({'model_state_dict': ActorCritic().state_dict()}, checkpoints / 'sample.pt')
+    inspected, control = sim3d.SimulationSession(), sim3d.SimulationSession()
+    initial = inspected.reset(42, 'ppo', 'sample.pt')
+    control.reset(42, 'ppo', 'sample.pt')
+    assert all(a['last_action'] is None for a in initial['agents'])
+    assert all(sum(a['next_action_probabilities'].values()) == pytest.approx(1)
+               for a in initial['agents'])
+    for _ in range(10):
+        # Repeated UI reads must not consume sampling RNG or advance the world.
+        before = inspected.state()
+        assert inspected.state() == before
+        assert inspected.step() == control.step()
+    assert all(a['last_action'] in Action.__members__ for a in inspected.state()['agents'])
+    assert all(a['last_outcome'] for a in inspected.state()['agents'])
+    reset = inspected.reset(42, 'ppo', 'sample.pt')
+    assert all(a['last_action'] is None for a in reset['agents'])
+
+
+def test_inspection_baselines_and_dead_agents_have_no_model_probabilities(checkpoints):
+    session = sim3d.SimulationSession()
+    assert all(not a['next_action_probabilities'] for a in session.state()['agents'])
+    session.reset(123, 'ppo', 'east.pt')
+    session.world.agents[0].alive = False
+    session.world.agents[0].energy = 0
+    assert session.state()['agents'][0]['next_action_probabilities'] == {}
+    session.world.tick = session.world.config.horizon
+    final = session.state()
+    assert all(not a['next_action_probabilities'] for a in final['agents'])
+    assert session.step() == final
+
+
+def test_legacy_inspection_has_five_probabilities(checkpoints):
+    torch.save({'model_state_dict': ActorCritic(action_count=5).state_dict()}, checkpoints / 'old.pt')
+    session = sim3d.SimulationSession()
+    state = session.reset(123, 'ppo', 'old.pt')
+    assert state['eating_mode'] == 'automatic'
+    for agent in state['agents']:
+        assert len(agent['next_action_probabilities']) == 5
+        assert 'EAT' not in agent['next_action_probabilities']

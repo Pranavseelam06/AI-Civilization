@@ -109,6 +109,94 @@ export async function start() {
   const actors = new Map();
   const targets = new Map();
   let playing = false, busy = false, lastTick = 0;
+  let selectedAgent = null;
+  const viewMaterial = new THREE.MeshBasicMaterial({color: '#f4cf60', transparent: true,
+    opacity: 0.25, depthWrite: false, side: THREE.DoubleSide});
+  const viewGeometry = new THREE.PlaneGeometry(0.94, 0.94);
+  viewGeometry.rotateX(-Math.PI/2);
+  const viewTiles = new THREE.InstancedMesh(viewGeometry, viewMaterial, 25);
+  viewTiles.count = 0; viewTiles.frustumCulled = false;
+  scene.add(viewTiles);
+  const selectionRing = new THREE.Mesh(new THREE.RingGeometry(0.32, 0.42, 32),
+    new THREE.MeshBasicMaterial({color: '#ffe28a', side: THREE.DoubleSide, depthWrite: false}));
+  selectionRing.rotation.x = -Math.PI/2;
+  selectionRing.visible = false;
+  scene.add(selectionRing);
+
+  function updateInspection() {
+    const agent = state.agents.find(a => a.id === selectedAgent);
+    $('inspect-agent').replaceChildren(...[
+      {value: '', label: 'None'},
+      ...state.agents.map(a => ({value: String(a.id), label: `Agent ${a.id} · ${a.alive ? a.energy + ' energy' : 'dead'}`}))
+    ].map(entry => {
+      const option = document.createElement('option');
+      option.value = entry.value; option.textContent = entry.label;
+      return option;
+    }));
+    $('inspect-agent').value = agent ? String(agent.id) : '';
+    $('inspection').replaceChildren();
+    viewTiles.count = 0;
+    selectionRing.visible = Boolean(agent && agent.alive);
+    const line = text => {
+      const paragraph = document.createElement('p'); paragraph.className = 'note';
+      paragraph.textContent = text; $('inspection').appendChild(paragraph);
+    };
+    if (!agent) {line('Select an agent to inspect it.'); return;}
+    line(`Agent ${agent.id} · ${agent.energy}/100 energy · ${agent.alive ? 'alive' : 'dead'}`);
+    line(`Latest action: ${agent.last_action ?? 'none yet'}${agent.last_outcome ? ' · ' + agent.last_outcome : ''}`);
+    if (agent.alive) {
+      const matrix = new THREE.Matrix4();
+      let count = 0;
+      for (let dy=-2; dy<=2; dy++) for (let dx=-2; dx<=2; dx++) {
+        const x = agent.x+dx, y = agent.y+dy;
+        if (x<0 || x>=width || y<0 || y>=height) continue;
+        matrix.makeTranslation(x-offsetX, groundY+0.018, y-offsetZ);
+        viewTiles.setMatrixAt(count++, matrix);
+      }
+      viewTiles.count = count; viewTiles.instanceMatrix.needsUpdate = true;
+    }
+    const probabilities = Object.entries(agent.next_action_probabilities ?? {});
+    if (!probabilities.length) {
+      line(!agent.alive ? 'This agent has died; no next action.' : state.finished
+        ? 'Episode finished; no next action.' : 'Model probabilities are available with Trained PPO.');
+      return;
+    }
+    line('Next-action probabilities at the current tick (latest action was chosen on the previous tick).');
+    for (const [name, probability] of probabilities) {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:6px;margin:5px 0;font-size:12px';
+      const label = document.createElement('span'); label.textContent = name; label.style.width = '52px';
+      const bar = document.createElement('progress'); bar.max = 1; bar.value = probability;
+      bar.setAttribute('aria-label', `${name} probability`); bar.style.cssText = 'flex:1;min-width:0';
+      const value = document.createElement('span'); value.textContent = `${(100*probability).toFixed(1)}%`;
+      row.append(label, bar, value); $('inspection').appendChild(row);
+    }
+    line(state.eating_mode === 'automatic' ? 'Eating is automatic in this experiment; it is not a model action.'
+      : 'These are action chances, not thoughts or an explanation of intent.');
+  }
+  $('inspect-agent').onchange = () => {
+    selectedAgent = $('inspect-agent').value === '' ? null : Number($('inspect-agent').value);
+    updateInspection();
+  };
+  const raycaster = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
+  let pointerDown = null;
+  renderer.domElement.addEventListener('pointerdown', event => {
+    pointerDown = event.button === 0 ? {x:event.clientX, y:event.clientY, id:event.pointerId} : null;
+  });
+  renderer.domElement.addEventListener('pointercancel', () => {pointerDown=null;});
+  renderer.domElement.addEventListener('pointerup', event => {
+    const down = pointerDown; pointerDown = null;
+    if (!down || down.id !== event.pointerId || Math.hypot(event.clientX-down.x, event.clientY-down.y)>5) return;
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointer.set((event.clientX-rect.left)/rect.width*2-1, -(event.clientY-rect.top)/rect.height*2+1);
+    raycaster.setFromCamera(pointer, camera);
+    const visibleActors = [...actors.values()].filter(model => model.visible);
+    const hit = raycaster.intersectObjects(visibleActors, true)[0];
+    selectedAgent = hit ? hit.object.userData.agentId : null;
+    updateInspection();
+  });
+
 
   function updateButtons() {
     $('play').disabled = state.finished;
@@ -122,6 +210,7 @@ export async function start() {
     for (const a of state.agents) {
       if (!actors.has(a.id)) {
         const model = people[a.id % people.length].clone(true);
+        model.traverse(node => {node.userData.agentId = a.id;});
         scene.add(model);
         actors.set(a.id, model);
       }
@@ -144,6 +233,7 @@ export async function start() {
       return row;
     }));
     if (state.finished) playing = false;
+    updateInspection();
     updateButtons();
   }
   async function mutate(path, data, snap=false) {
@@ -196,6 +286,10 @@ export async function start() {
       lastTick=now;mutate('/api/step',{});
     }
     for (const [id,model] of actors) model.position.lerp(targets.get(id),1-Math.exp(-18*dt));
+    if (selectionRing.visible && actors.has(selectedAgent)) {
+      selectionRing.position.copy(actors.get(selectedAgent).position);
+      selectionRing.position.y += 0.025;
+    }
     controls.update();renderer.render(scene,camera);
   });
 }

@@ -11,11 +11,13 @@ from urllib.parse import urlsplit
 
 import numpy as np
 
+from civsim.actions import Action
 from civsim.config import SimulationConfig
 from civsim.observations import nearest_food
 from civsim.world import World
 from learning.baselines import heuristic_policy, random_policy
 from visualization.model_preview import PreviewHandler
+from experiments.diagnostics import movement_outcomes
 
 STATIC = Path(__file__).with_suffix('')
 CHECKPOINTS = STATIC.parents[1] / 'checkpoints'
@@ -80,22 +82,35 @@ class SimulationSession:
         self.rng = np.random.default_rng(seed + 10000)
         self.world = World(self.world.config, automatic_eating=bool(learned and learned.automatic_eating))
         self.world.reset(seed)
+        self.last_actions = {}
+        self.last_outcomes = {}
         return self.state()
 
     def state(self):
         w = self.world
         alive = sum(a.alive for a in w.agents)
+        finished = alive == 0 or (w.config.horizon is not None and w.tick >= w.config.horizon)
+        probabilities = self.learned.probabilities(w) if self.learned and not finished else {}
+        agents = []
+        for agent in w.agents:
+            row = asdict(agent)
+            row['last_action'] = self.last_actions.get(agent.id)
+            row['last_outcome'] = self.last_outcomes.get(agent.id)
+            row['next_action_probabilities'] = {Action(i).name: probability
+                for i, probability in enumerate(probabilities.get(agent.id, []))}
+            agents.append(row)
         return {'config': asdict(w.config), 'seed': self.seed, 'policy': self.policy,
                 'checkpoint': self.checkpoint,
                 'eating_mode': 'automatic' if w.automatic_eating else 'explicit EAT',
                 'action_masking': bool(self.learned and self.learned.action_masking),
-                'tick': w.tick, 'agents': [asdict(a) for a in w.agents],
+                'tick': w.tick, 'agents': agents,
                 'food': np.argwhere(w.food).tolist(), 'food_consumed': w.food_consumed,
                 'food_energy_wasted': w.food_energy_wasted,
-                'finished': alive == 0 or (w.config.horizon is not None and w.tick >= w.config.horizon)}
+                'finished': finished}
 
     def step(self):
-        if not self.state()['finished']:
+        if (any(a.alive for a in self.world.agents) and
+                (self.world.config.horizon is None or self.world.tick < self.world.config.horizon)):
             actions = {}
             if self.policy == 'ppo':
                 actions = self.learned.actions(self.world)
@@ -104,6 +119,8 @@ class SimulationSession:
                     if a.alive:
                         actions[a.id] = (random_policy(self.rng) if self.policy == 'random'
                                         else heuristic_policy(a.energy, nearest_food(self.world.food, a), self.rng))
+            self.last_actions.update({agent_id: Action(action).name for agent_id, action in actions.items()})
+            self.last_outcomes.update(movement_outcomes(self.world, actions))
             self.world.step(actions)
         return self.state()
 

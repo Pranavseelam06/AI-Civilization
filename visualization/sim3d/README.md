@@ -44,3 +44,19 @@ The experiment menu contains one entry for each Experiment 1–13. Experiments
 press Start. Clear the search to see the full list. Experiments 1–4 load their
 five-action networks with the original seeded 50% automatic-eating behavior;
 later experiments use explicit EAT. This is inference only; no weights change.
+
+### Inspecting agents
+
+Click a person in the world, or choose an agent in the inspector dropdown.
+Gold squares show the on-map portion of that agent's 5×5 field of view; a ring
+marks the selected person. Dragging the camera does not select agents. Click
+empty land or choose None to clear the selection. Pause or use Step to inspect
+individual ticks. Dead agents remain available in the dropdown without an overlay.
+
+The inspector shows current energy, the latest requested action and its movement
+outcome, and (for PPO) the next-action probabilities from the current observation.
+These probabilities refer to the next tick, not the observation used for the
+latest action. Reading them does not sample actions, advance simulation RNG, or
+update model weights. Heuristic/random policies have no neural model probabilities;
+Experiments 1–4 show five probabilities with automatic eating. Finished episodes
+show no next-action probabilities. These values do not represent verbal thoughts.

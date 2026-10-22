@@ -16,6 +16,12 @@
 <label for="seed">World seed</label><input id="seed" type="number" min="0" max="4294967295" step="1" value="123">
 <div class="buttons"><button id="reset" disabled>Reset world</button></div>
 <p class="note">Policy, checkpoint, and seed apply on reset. Drag to orbit, scroll to zoom, right-drag to pan. Space pauses.</p>
+<section aria-labelledby="inspect-title" style="margin-top:16px;border-top:1px solid #ffffff30;padding-top:12px">
+<h2 id="inspect-title" style="font-size:16px;margin:0">Inspect an agent</h2>
+<p class="note">Click a person on the map or choose one below. The gold squares mark its 5×5 view on the land.</p>
+<label for="inspect-agent">Selected agent</label><select id="inspect-agent" style="width:100%"><option value="">None</option></select>
+<div id="inspection" aria-live="polite"><p class="note">Select an agent to inspect it.</p></div>
+</section>
 <details><summary>Agent energy</summary><div id="agents"></div></details>
 <p class="note">Character appearances are visual only. No age or gender behavior is simulated.</p><p id="status" role="status">Loading models…</p>
 </aside>
