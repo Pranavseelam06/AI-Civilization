@@ -97,7 +97,7 @@ def test_experiment_catalog_hides_extra_runs_and_uses_best_and_archive(checkpoin
         shutil.copyfile(checkpoints / 'east.pt', checkpoints / name)
     shutil.copyfile(checkpoints / 'east.pt', checkpoints / 'archive' / 'experiment_9.pt')
     entries = sim3d.experiment_catalog()
-    assert len(entries) == 14
+    assert len(entries) == 15
     assert entries[11]['name'] == 'experiment_12_best.pt'
     assert entries[12]['name'] == 'experiment_13_best.pt'
     assert entries[8]['name'] == 'archive/experiment_9.pt'

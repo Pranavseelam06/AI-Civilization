@@ -21,6 +21,7 @@ class World:
         self.regrowth_rng = np.random.default_rng(1)
         self.food_consumed = 0
         self.food_picked_up = 0
+        self.food_spoiled = 0
         self.food_energy_gained = 0
         self.food_energy_wasted = 0
         self.missed_meals = 0
@@ -38,6 +39,7 @@ class World:
         self.regrowth_rng = np.random.default_rng(regrowth_seed)
         self.food_consumed = 0
         self.food_picked_up = 0
+        self.food_spoiled = 0
         self.food_energy_gained = 0
         self.food_energy_wasted = 0
         self.missed_meals = 0
@@ -55,6 +57,8 @@ class World:
         With food_carrying enabled, PICKUP stores one underfoot food (no reward
         or energy gain); EAT uses stored food first, otherwise underfoot food.
         PICKUP and EAT each cost one tick. Carried food is lost on death.
+        Optional decay counts subsequent ticks only; EAT at freshness 1 is valid
+        before end-of-tick expiry, which removes the food without reward.
         Eating restores 25 energy (capped at 100), then each living agent loses
         one energy, including when staying. Uneaten food remains for later ticks.
         Return rewards by agent ID: death -10, signed hunger-based eating rewards,
@@ -63,6 +67,14 @@ class World:
         With horizon=None there is no end-survival bonus.
         Already-dead agents receive zero.
         """
+        # Normally expiry is processed at the previous tick's end; also reject
+        # stale inventory in explicitly constructed/imported states.
+        if self.config.carried_food_decay_ticks is not None:
+            for agent in self.agents:
+                if agent.alive and agent.carried_food and agent.food_ticks_left <= 0:
+                    agent.carried_food = 0
+                    agent.food_ticks_left = 0
+                    self.food_spoiled += 1
         occupied = {(agent.x, agent.y) for agent in self.agents if agent.alive}
         destinations = {}
         chosen_actions = {}
@@ -102,6 +114,7 @@ class World:
             if destination is not None and counts[destination] == 1:
                 agent.x, agent.y = destination
             gained = 0
+            picked_up = False
             energy_before_eating = agent.energy
             if (energy_before_eating < 30 and food_available_before_action[agent.id]
                     and chosen_actions[agent.id] != Action.EAT):
@@ -110,6 +123,8 @@ class World:
                     and agent.carried_food == 0 and self.food[agent.y, agent.x]):
                 self.food[agent.y, agent.x] = False
                 agent.carried_food = 1
+                agent.food_ticks_left = self.config.carried_food_decay_ticks or 0
+                picked_up = True
                 self.food_picked_up += 1
             from_inventory = self.config.food_carrying and agent.carried_food == 1
             should_eat = (self.eating_rng.random() < 0.5 if self.automatic_eating
@@ -118,6 +133,7 @@ class World:
                     else chosen_actions[agent.id] == Action.EAT and agent.energy < 100)):
                 if from_inventory:
                     agent.carried_food = 0
+                    agent.food_ticks_left = 0
                 else:
                     self.food[agent.y, agent.x] = False
                 self.food_consumed += 1
@@ -129,6 +145,14 @@ class World:
             if agent.energy == 0:
                 agent.alive = False
                 agent.carried_food = 0  # Carried food is lost on death; no drops yet.
+                agent.food_ticks_left = 0
+            elif (self.config.carried_food_decay_ticks is not None
+                    and agent.carried_food and not picked_up):
+                # Ten subsequent action opportunities; do not age on pickup tick.
+                agent.food_ticks_left -= 1
+                if agent.food_ticks_left == 0:
+                    agent.carried_food = 0
+                    self.food_spoiled += 1
             episode_end = (self.config.horizon is not None
                            and self.tick + 1 == self.config.horizon)
             rewards[agent.id] = calculate_reward(

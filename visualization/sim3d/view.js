@@ -45,9 +45,12 @@ export async function start() {
   function updateCheckpointControl() {
     $('checkpoint').disabled = $('policy').value !== 'ppo';
     $('food-carrying').disabled = $('policy').value === 'ppo';
+    $('food-decay').disabled = $('policy').value === 'ppo';
     $('action-selection').disabled = $('policy').value !== 'ppo';
   }
   $('policy').onchange = updateCheckpointControl;
+  $('food-decay').onchange = () => {if ($('food-decay').checked) $('food-carrying').checked = true;};
+  $('food-carrying').onchange = () => {if (!$('food-carrying').checked) $('food-decay').checked = false;};
   const {width, height} = state.config;
   const renderer = new THREE.WebGLRenderer({antialias: true});
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -151,6 +154,9 @@ export async function start() {
     if (!agent) {line('Select an agent to inspect it.'); return;}
     line(`Agent ${agent.id} · ${agent.energy}/100 energy · ${agent.alive ? 'alive' : 'dead'}`);
     line(state.config.food_carrying ? `Carried food: ${agent.carried_food ?? 0}/1` : 'Food carrying is disabled in this experiment.');
+    if (state.config.carried_food_decay_ticks != null) {
+      line(agent.carried_food ? `Freshness: ${agent.food_ticks_left} ticks left / ${state.config.carried_food_decay_ticks}` : 'Freshness: no carried food');
+    }
     line(`Latest action: ${agent.last_action ?? 'none yet'}${agent.last_outcome ? ' · ' + agent.last_outcome : ''}`);
     if (agent.alive) {
       const matrix = new THREE.Matrix4();
@@ -217,6 +223,7 @@ export async function start() {
     state = next;
     if (snap) {
       $('food-carrying').checked = Boolean(state.config.food_carrying);
+      $('food-decay').checked = state.config.carried_food_decay_ticks != null;
       $('action-selection').value = state.action_selection ?? 'sample';
     }
     updateFood(state.food.map(([y,x]) => [x-offsetX,groundY,y-offsetZ]));
@@ -242,7 +249,7 @@ export async function start() {
     }
     const alive = state.agents.filter(a=>a.alive).length;
     const horizon = state.config.horizon ?? '∞';
-    $('metrics').textContent = `Tick ${state.tick} / ${horizon} · Alive ${alive}/${state.agents.length} · Food ${state.food.length} · Carrying ${state.agents.reduce((sum,a) => sum+(a.carried_food ?? 0),0)} · Eaten ${state.food_consumed} · Wasted energy ${state.food_energy_wasted}`;
+    $('metrics').textContent = `Tick ${state.tick} / ${horizon} · Alive ${alive}/${state.agents.length} · Food ${state.food.length} · Carrying ${state.agents.reduce((sum,a) => sum+(a.carried_food ?? 0),0)} · Eaten ${state.food_consumed} · Spoiled ${state.food_spoiled ?? 0} · Wasted energy ${state.food_energy_wasted}`;
     $('agents').replaceChildren(...state.agents.map(a => {
       const row = document.createElement('div');
       row.textContent = `Agent ${a.id} · ${names[a.id%4]} · ${a.alive ? `${a.energy} energy${state.config.food_carrying ? ' · food ' + (a.carried_food ?? 0) + '/1' : ''}` : 'dead'}`;
@@ -276,7 +283,7 @@ export async function start() {
       return;
     }
     playing=false;
-    mutate('/api/reset',{seed,policy:$('policy').value,checkpoint:$('checkpoint').value,food_carrying:$('food-carrying').checked,action_selection:$('action-selection').value},true);
+    mutate('/api/reset',{seed,policy:$('policy').value,checkpoint:$('checkpoint').value,food_carrying:$('food-carrying').checked,food_decay:$('food-decay').checked,action_selection:$('action-selection').value},true);
   };
   $('speed').oninput = () => {$('rate').textContent=$('speed').value;};
   $('camera').disabled=false;

@@ -27,7 +27,7 @@ def experiment_catalog():
     """One entry per experiment; retain training artifacts outside the menu."""
     from learning.inference import compatible_checkpoint
     entries = []
-    for number in range(1, 15):
+    for number in range(1, 16):
         stem = f'experiment_{number}'
         candidates = ([CHECKPOINTS / f'{stem}_best.pt'] if number >= 12 else [])
         candidates += [CHECKPOINTS / f'{stem}.pt', CHECKPOINTS / 'archive' / f'{stem}.pt']
@@ -66,16 +66,19 @@ class SimulationSession:
         self.world = World(SimulationConfig())
         self.reset(123, 'heuristic')
 
-    def reset(self, seed, policy, checkpoint=None, *, food_carrying=False, action_selection="sample"):
+    def reset(self, seed, policy, checkpoint=None, *, food_carrying=False, food_decay=False, action_selection="sample"):
         if type(seed) is not int or not 0 <= seed <= 2**32 - 1:
             raise ValueError('Seed must be an integer between 0 and 4294967295.')
         if policy not in ('random', 'heuristic', 'ppo'):
             raise ValueError('Choose random, heuristic, or ppo policy.')
+        if type(food_decay) is not bool:
+            raise ValueError('food_decay must be a boolean')
         if type(food_carrying) is not bool:
             raise ValueError('food_carrying must be a boolean')
         if action_selection not in ('sample', 'argmax'):
             raise ValueError('Choose sample or argmax action selection')
-        config = replace(self.world.config, food_carrying=food_carrying)
+        config = replace(self.world.config, food_carrying=food_carrying or food_decay,
+                         carried_food_decay_ticks=10 if food_decay else None)
         learned = None
         if policy == 'ppo':
             names = checkpoint_names()
@@ -83,8 +86,9 @@ class SimulationSession:
             if checkpoint not in names:
                 raise ValueError('Choose an existing checkpoint from checkpoints/.')
             try:
-                from learning.inference import LearnedPolicy, checkpoint_food_carrying
-                config = replace(config, food_carrying=checkpoint_food_carrying(CHECKPOINTS / checkpoint))
+                from learning.inference import LearnedPolicy, checkpoint_food_carrying, checkpoint_decay_ticks
+                config = replace(config, food_carrying=checkpoint_food_carrying(CHECKPOINTS / checkpoint),
+                                 carried_food_decay_ticks=checkpoint_decay_ticks(CHECKPOINTS / checkpoint))
                 learned = LearnedPolicy(CHECKPOINTS / checkpoint, config, seed, allow_legacy=True)
             except (ImportError, OSError, RuntimeError, ValueError, KeyError, TypeError, EOFError, pickle.UnpicklingError) as exc:
                 raise ValueError(f'Cannot load PPO checkpoint: {exc}') from exc
@@ -121,6 +125,7 @@ class SimulationSession:
                 'food': np.argwhere(w.food).tolist(), 'food_consumed': w.food_consumed,
                 'food_energy_wasted': w.food_energy_wasted,
                 'food_picked_up': w.food_picked_up,
+                'food_spoiled': w.food_spoiled,
                 'finished': finished}
 
     def step(self):
@@ -191,7 +196,7 @@ class SimulationHandler(PreviewHandler):
                 if path == '/api/step':
                     result = self.server.session.step()
                 elif path == '/api/reset':
-                    result = self.server.session.reset(data.get('seed', 123), data.get('policy', 'heuristic'), data.get('checkpoint'), food_carrying=data.get('food_carrying', False), action_selection=data.get('action_selection', 'sample'))
+                    result = self.server.session.reset(data.get('seed', 123), data.get('policy', 'heuristic'), data.get('checkpoint'), food_carrying=data.get('food_carrying', False), food_decay=data.get('food_decay', False), action_selection=data.get('action_selection', 'sample'))
                 else:
                     self.send_json({'error': 'Unknown endpoint'}, 404)
                     return
@@ -211,10 +216,11 @@ def main():
     parser.add_argument('--checkpoint', help='Checkpoint filename/path within checkpoints/, or latest')
     parser.add_argument('--food-carrying', action='store_true', help='Enable carrying for baseline policies')
     parser.add_argument('--action-selection', choices=('sample','argmax'), default='sample')
+    parser.add_argument('--food-decay', action='store_true', help='Enable carrying with 10-tick carried-food decay')
     args = parser.parse_args()
     session = SimulationSession()
-    if args.food_carrying:
-        session.reset(123, 'heuristic', food_carrying=True)
+    if args.food_carrying or args.food_decay:
+        session.reset(123, 'heuristic', food_carrying=True, food_decay=args.food_decay)
     if args.checkpoint:
         names = checkpoint_names()
         name = (names[0] if names else '') if args.checkpoint == 'latest' else Path(args.checkpoint).name

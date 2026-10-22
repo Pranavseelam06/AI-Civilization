@@ -481,3 +481,22 @@ Use `sample` or `argmax` instead of `both` for a single mode. For Experiment 14
 on these 30 worlds, sampling averaged **10.47 survivors**, versus **5.87** for
 argmax, with zero food-energy waste for both. Sampling stays the default.
 See the [action-selection comparison](project-journal/experiment_14_action_selection.md).
+
+### Experiment 15: carried food expires after ten ticks
+
+Only carried food decays; ground food and Experiments 1–14 keep their original
+rules. The new model observes remaining freshness and was trained for 1,000
+updates with unchanged rewards. On 30 new worlds it averaged **8.67 survivors
+out of 12**, versus the heuristic’s **7.83**, with **zero food-energy waste**
+when eating and **nine spoiled food units**. It mostly ate directly from the
+ground, using inventory for 190 of 5,642 meals.
+
+```sh
+python -m visualization.sim3d --checkpoint experiment_15.pt
+```
+
+Selecting Experiment 15 enables decay automatically. The inspector shows
+freshness and the viewer counts spoiled units separately from eating waste.
+For a heuristic demo, use `python -m visualization.sim3d --food-decay`.
+Training/evaluation accept `--food-decay`, which also enables carrying.
+See the [Experiment 15 report](project-journal/experiment_15.md).

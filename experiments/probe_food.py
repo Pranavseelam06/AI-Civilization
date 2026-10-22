@@ -9,16 +9,16 @@ from civsim.actions import Action, MOVEMENT_DELTAS
 from civsim.agents import AgentState
 from civsim.config import SimulationConfig
 from civsim.world import World
-from learning.inference import LearnedPolicy, compatible_checkpoint, checkpoint_food_carrying
+from learning.inference import LearnedPolicy, compatible_checkpoint, checkpoint_food_carrying, checkpoint_decay_ticks
 
 
 CONDITIONS = {'none': None, 'north': Action.NORTH, 'south': Action.SOUTH,
               'east': Action.EAST, 'west': Action.WEST}
 
 
-def probe_world(energy, *, food_carrying=False):
+def probe_world(energy, *, food_carrying=False, decay_ticks=None):
     """One isolated agent in the interior, no food, obstacles, or boundaries visible."""
-    world = World(SimulationConfig(food_carrying=food_carrying))
+    world = World(SimulationConfig(food_carrying=food_carrying, carried_food_decay_ticks=decay_ticks))
     world.reset(123)
     world.grid[:] = 0
     world.food[:] = False
@@ -29,7 +29,7 @@ def probe_world(energy, *, food_carrying=False):
 def probe_policy(policy, checkpoint, energies=(25,50,100)):
     rows = []
     for energy in energies:
-        world = probe_world(energy, food_carrying=policy.food_carrying)
+        world = probe_world(energy, food_carrying=policy.food_carrying, decay_ticks=policy.carried_food_decay_ticks)
         agent = world.agents[0]
         baseline = policy.probabilities(world)[agent.id]
         for condition, target in CONDITIONS.items():
@@ -70,7 +70,7 @@ def main():
     if output.exists():parser.error('Output already exists; choose a new path')
     rows=[]
     for path in paths:
-        policy=LearnedPolicy(path,SimulationConfig(food_carrying=checkpoint_food_carrying(path)),123)
+        policy=LearnedPolicy(path,SimulationConfig(food_carrying=checkpoint_food_carrying(path), carried_food_decay_ticks=checkpoint_decay_ticks(path)),123)
         results=probe_policy(policy,path)
         rows.extend(results)
         print(f'\n{path.name} — 50 energy, one adjacent food item:')

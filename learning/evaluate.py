@@ -21,7 +21,7 @@ from civsim.rewards import REWARD_SPEC
 from civsim.observations import nearest_food
 from experiments.diagnostics import movement_outcomes, near_corner
 from learning.baselines import random_policy, heuristic_policy
-from learning.inference import LearnedPolicy, compatible_checkpoint, checkpoint_food_carrying
+from learning.inference import LearnedPolicy, compatible_checkpoint, checkpoint_food_carrying, checkpoint_decay_ticks
 
 
 REJECTED = ('boundary','obstacle','occupied','contested','invalid')
@@ -84,7 +84,8 @@ def evaluate_episode(policy, seed, config, checkpoint=None, *, action_selection=
            'stored_food_consumed':stored_food_consumed,
            'carrying_agent_ticks':carrying_agent_ticks,
            'carried_food_remaining':sum(a.carried_food for a in world.agents),
-           'carried_food_lost':world.food_picked_up - stored_food_consumed - sum(a.carried_food for a in world.agents),
+           'food_spoiled':world.food_spoiled,
+           'carried_food_lost':world.food_picked_up - stored_food_consumed - world.food_spoiled - sum(a.carried_food for a in world.agents),
            'food_energy_gained':world.food_energy_gained,'food_energy_wasted':world.food_energy_wasted,
            'missed_meals':world.missed_meals,
            'episode_ticks':world.tick,'agent_ticks':attempts,
@@ -112,12 +113,14 @@ def main():
     parser.add_argument('--food-carrying',action='store_true',help='Evaluate the new inventory task')
     parser.add_argument('--action-selection', choices=('sample','argmax','both'), default='sample',
                         help='PPO inference only; both compares modes on matching seeds')
+    parser.add_argument('--food-decay',action='store_true',help='Enable carrying with 10-tick carried-food decay')
     args=parser.parse_args()
+    args.food_carrying = args.food_carrying or args.food_decay
     if args.episodes <= 0 or (args.start_seed is not None and args.start_seed < 0):
         parser.error('episodes must be positive; start-seed must be nonnegative')
     torch.set_num_threads(1)
     folder=Path(__file__).resolve().parents[1]/'checkpoints'
-    available=sorted((p for p in folder.glob('*.pt') if compatible_checkpoint(p) and checkpoint_food_carrying(p) == args.food_carrying),key=lambda p:p.stat().st_mtime,reverse=True)
+    available=sorted((p for p in folder.glob('*.pt') if compatible_checkpoint(p) and checkpoint_food_carrying(p) == args.food_carrying and checkpoint_decay_ticks(p) == (10 if args.food_decay else None)),key=lambda p:p.stat().st_mtime,reverse=True)
     paths=[]
     for requested in args.checkpoints:
         if requested in ('latest','all'):
@@ -130,8 +133,9 @@ def main():
             paths.append(path)
     paths=list(dict.fromkeys(p.resolve() for p in paths))
     for path in paths:
-        if checkpoint_food_carrying(path) != args.food_carrying:
-            parser.error('Checkpoint task differs: use --food-carrying only for carrying checkpoints')
+        if (checkpoint_food_carrying(path) != args.food_carrying or
+                checkpoint_decay_ticks(path) != (10 if args.food_decay else None)):
+            parser.error('Checkpoint task differs: use matching --food-carrying / --food-decay flags')
     training=[]
     safe_seed=10000
     for path in paths:
@@ -149,7 +153,7 @@ def main():
     output=args.output_dir or Path(f'runs/evaluation_{datetime.now():%Y%m%d_%H%M%S_%f}')
     if output.exists() and any(output.iterdir()): parser.error('Choose an empty output directory')
     output.mkdir(parents=True,exist_ok=True)
-    config=SimulationConfig(food_carrying=args.food_carrying)
+    config=SimulationConfig(food_carrying=args.food_carrying, carried_food_decay_ticks=10 if args.food_decay else None)
     rows,samples,summaries=[],[],[]
     started=time.perf_counter()
     modes = ['sample', 'argmax'] if args.action_selection == 'both' else [args.action_selection]
@@ -170,6 +174,10 @@ def main():
             'all_survive_worlds':sum(r['survivors']==config.num_agents for r in results),
             'food_consumed':sum(r['food_consumed'] for r in results),
             'stored_food_consumed':sum(r['stored_food_consumed'] for r in results),
+            'food_picked_up':sum(r['food_picked_up'] for r in results),
+            'food_spoiled':sum(r['food_spoiled'] for r in results),
+            'carried_food_lost':sum(r['carried_food_lost'] for r in results),
+            'carried_food_remaining':sum(r['carried_food_remaining'] for r in results),
             'waste_fraction':sum(r['food_energy_wasted'] for r in results)/capacity if capacity else 0,
             'mean_rejected_move_fraction':mean(r['rejected_move_fraction'] for r in results)})
         name=f'{checkpoint.name} [{mode}]' if checkpoint else policy

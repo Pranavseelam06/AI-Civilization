@@ -38,3 +38,5 @@ Each entry is one sentence; results are exploratory and evaluation seeds differ 
 - **Experiment 14 — October 22, 2026:** Extending the unchanged one-slot carrying setup from 200 to 1,000 updates raised mean survivors from 4.63 to 10.47 out of 12 and reduced food-energy waste from 4.34% to zero on 30 reused evaluation worlds, with 29 paired wins and one tie; the updated checkpoint is active and the original is archived.
 
 - **Experiment 14 — Sample versus argmax — October 22, 2026:** Comparing unchanged weights on 30 reused worlds found sampling averaged 10.47 survivors versus argmax’s 5.87 with zero food-energy waste for both, while argmax lost 27 paired worlds and had more contested moves, so sampling remains the default.
+
+- **Experiment 15 — October 22, 2026:** Training a new 103-input model for 1,000 updates with ten-tick carried-food decay averaged 8.67 survivors versus the heuristic’s 7.83 on 30 new worlds, with zero energy waste when eating and nine spoiled units out of 199 pickups, predominantly using direct ground meals.

@@ -122,7 +122,7 @@ def save_rollout(path: Path, rollout: Rollout, config, torch_seed: int) -> None:
                 'torch_version': str(torch.__version__), 'world_ticks': rollout.world_ticks,
                 'policy': 'ActorCritic rollout (weights not embedded)',
                 'action_masking': True, 'reward_spec': REWARD_SPEC,
-                'bootstrap_time_limits': False, 'format_version': 5 if config.food_carrying else 4,
+                'bootstrap_time_limits': False, 'format_version': 6 if config.carried_food_decay_ticks else (5 if config.food_carrying else 4),
                 'eating_mode': 'explicit_action', 'actions': [a.name for a in Action][:7 if config.food_carrying else 6]}
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open('wb') as output:
@@ -148,6 +148,7 @@ def main():
     parser.add_argument('--seed', type=int, default=123)
     parser.add_argument('--collect-only', action='store_true')
     parser.add_argument('--food-carrying', action='store_true', help='One food slot, PICKUP, and a 102-value observation')
+    parser.add_argument('--food-decay', action='store_true', help='Enable carrying and spoil carried food after 10 ticks')
     parser.add_argument('--output', type=Path, default=Path('runs/rollout.npz'),
                         help='Output path in collect-only mode')
     parser.add_argument('--run-dir', type=Path)
@@ -162,8 +163,10 @@ def main():
         parser.error('ticks, updates, threads must be positive; seed must be nonnegative')
     torch.set_num_threads(args.threads)
     torch.manual_seed(args.seed)
-    env = SimulationEnv(SimulationConfig(food_carrying=args.food_carrying))
-    model = ActorCritic(observation_size=102 if args.food_carrying else 101,
+    args.food_carrying = args.food_carrying or args.food_decay
+    env = SimulationEnv(SimulationConfig(food_carrying=args.food_carrying,
+                                        carried_food_decay_ticks=10 if args.food_decay else None))
+    model = ActorCritic(observation_size=103 if args.food_decay else (102 if args.food_carrying else 101),
                         action_count=7 if args.food_carrying else 6)
     collector = RolloutCollector(env, model, args.seed)
     if args.collect_only:
@@ -193,7 +196,7 @@ def main():
                 'save_every': args.save_every,
                 'torch_version': str(torch.__version__), 'git_commit': commit,
                 'device': 'cpu', 'threads': args.threads, 'action_masking': True,
-                'mask_version': 3 if args.food_carrying else 2,
+                'mask_version': 4 if args.food_decay else (3 if args.food_carrying else 2),
                 'reward_spec': REWARD_SPEC, 'bootstrap_time_limits': False,
                 'eating_mode': 'explicit_action', 'actions': [a.name for a in Action][:7 if env.world.config.food_carrying else 6],
                 'architecture': {'observation_size': model.features[0].in_features, 'hidden_units': [128,128], 'action_count': model.actor.out_features}}

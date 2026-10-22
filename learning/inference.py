@@ -13,14 +13,27 @@ def checkpoint_layout(saved):
     """Supported observation/action pairs; never resize or reinterpret weights."""
     weights = saved['model_state_dict']
     layout = (weights['features.0.weight'].shape[1], weights['actor.weight'].shape[0])
-    if layout not in ((101, 5), (101, 6), (102, 7)):
+    if layout not in ((101, 5), (101, 6), (102, 7), (103, 7)):
         raise ValueError('Unsupported checkpoint observation/action layout')
     return layout
 
 
 def checkpoint_food_carrying(path):
     saved = torch.load(path, map_location='cpu', weights_only=True)
-    return checkpoint_layout(saved) == (102, 7)
+    return checkpoint_layout(saved)[0] in (102, 103)
+
+
+def decay_ticks_from_checkpoint(saved):
+    if checkpoint_layout(saved)[0] != 103:
+        return None
+    ttl = saved.get('metadata', {}).get('environment', {}).get('carried_food_decay_ticks', 10)
+    if type(ttl) is not int or ttl <= 0:
+        raise ValueError('Invalid checkpoint food lifetime')
+    return ttl
+
+
+def checkpoint_decay_ticks(path):
+    return decay_ticks_from_checkpoint(torch.load(path, map_location='cpu', weights_only=True))
 
 
 def compatible_checkpoint(path, *, allow_legacy=False):
@@ -39,7 +52,10 @@ class LearnedPolicy:
         if not isinstance(saved, dict) or 'model_state_dict' not in saved:
             raise ValueError('Checkpoint must contain model_state_dict')
         self.observation_size, self.action_count = checkpoint_layout(saved)
-        self.food_carrying = self.observation_size == 102
+        self.food_carrying = self.observation_size in (102, 103)
+        self.carried_food_decay_ticks = decay_ticks_from_checkpoint(saved)
+        if self.carried_food_decay_ticks != config.carried_food_decay_ticks:
+            raise ValueError("Checkpoint food-decay mode does not match environment")
         if self.food_carrying != config.food_carrying:
             raise ValueError('Checkpoint food-carrying mode does not match environment')
         self.automatic_eating = self.action_count == 5
@@ -65,6 +81,8 @@ class LearnedPolicy:
     @torch.no_grad()
     def probabilities(self, world):
         """Inspect action probabilities without drawing actions or advancing RNG."""
+        if world.config.carried_food_decay_ticks != self.carried_food_decay_ticks:
+            raise ValueError("Checkpoint food-decay mode does not match world")
         if world.config.food_carrying != self.food_carrying:
             raise ValueError('Checkpoint food-carrying mode does not match world')
         agents = [a for a in world.agents if a.alive]
@@ -82,6 +100,8 @@ class LearnedPolicy:
         """Sample by probability, or select the highest masked logit (argmax)."""
         if action_selection not in ("sample", "argmax"):
             raise ValueError("action_selection must be sample or argmax")
+        if world.config.carried_food_decay_ticks != self.carried_food_decay_ticks:
+            raise ValueError("Checkpoint food-decay mode does not match world")
         if world.config.food_carrying != self.food_carrying:
             raise ValueError('Checkpoint food-carrying mode does not match world')
         agents = [a for a in world.agents if a.alive]

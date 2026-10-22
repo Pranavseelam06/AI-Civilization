@@ -93,3 +93,20 @@ python -m visualization.sim3d --checkpoint experiment_14.pt --action-selection a
 
 The evaluation CLI supports `--action-selection sample`, `argmax`, or `both`;
 `both` compares the same checkpoints on the same seeds, with baselines run once.
+
+### Carried-food freshness / Experiment 15
+
+```sh
+python -m visualization.sim3d --checkpoint experiment_15.pt
+```
+
+Experiment 15 automatically enables 10-tick decay and a 103-value observation.
+Pickup sets freshness to 10; each subsequent action can eat before that tick's
+countdown. At zero, food disappears. Ground food never decays. Inventory and
+remaining freshness appear in the inspector; Spoiled counts expired units,
+while Wasted energy measures unused energy from actual meals. Experiments
+1–14 keep their original observation layouts and non-decay rules.
+
+For baseline policies, `--food-decay` or the decay checkbox enables this mode;
+PPO checkpoints select their own lifetime. The CLI training and evaluation
+commands likewise accept `--food-decay` and preserve old defaults.
