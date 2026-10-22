@@ -26,3 +26,9 @@ Each entry is one sentence; results are exploratory and evaluation seeds differ 
 
 - **Food-direction probe — October 20, 2026:** Controlled food relocation exposed weak food responsiveness in Experiment 3 and strong direction-specific responses in Experiment 4.
 - **Forced exploration — October 20, 2026:** Replacing Experiment 4's foodless STAY choices with random legal movement across 30 matched worlds yielded 302 rather than 305 ticks of mean survival and provided no survival benefit.
+
+- **Experiment 12 — Longer survival audit — October 22, 2026:** Extending the frozen best checkpoint to 2,000 ticks on 30 new worlds reduced average survivors from 11.37 at tick 500 to 8.20 at tick 2,000 with zero food-energy waste, revealing continued mortality beyond the training horizon.
+
+- **Experiment 12 — Pre-death food audit — October 22, 2026:** Replaying the same 30 extended worlds exactly reproduced 114 deaths and found that 44 dying agents skipped underfoot food during their final 30 ticks, suggesting delayed eating as a contributor without establishing causality.
+
+- **Experiment 12 — Temporary earlier-eating test — October 22, 2026:** Forcing underfoot meals at energy ≤25 on the same 30 extended worlds raised mean survivors from 8.20 to 8.80 with zero waste, winning 17 pairs and losing eight, a modest exploratory gain whose bootstrap interval includes zero; the user rejected the rule and its implementation was removed on October 22, 2026.
